@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "numpy>=2.1",
+  "pyloudnorm>=0.2.0",
   "rich>=14.0",
   "scipy>=1.14",
   "silero-vad>=6.0",

@@ -51,6 +51,21 @@ interface TrackSummary {
   maximum_reduction_db: number
 }
 
+interface LoudnessMetrics {
+  integrated_lufs: number | null
+  maximum_momentary_lufs: number | null
+  maximum_short_term_lufs: number | null
+  loudness_range_lu: number
+  maximum_true_peak_dbtp: number | null
+  short_term_timeline: readonly { seconds: number; lufs: number | null }[]
+}
+
+interface LoudnessReport {
+  standard: string
+  stems: readonly LoudnessMetrics[]
+  virtual_mono_program: LoudnessMetrics
+}
+
 interface ReportData {
   attenuationDb: number
   health: Health
@@ -60,6 +75,7 @@ interface ReportData {
   review_moments: readonly ReviewMoment[]
   track_summary: readonly TrackSummary[]
   tracks: readonly TrackRow[]
+  loudness: LoudnessReport | null
 }
 
 declare global {
@@ -74,6 +90,28 @@ function formatTime(seconds: number) {
   return hours
     ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
     : `${minutes}:${String(remainder).padStart(2, '0')}`
+}
+
+function loudnessValue(value: number | null, unit: string) {
+  return value === null ? 'Silence' : `${value.toFixed(1)} ${unit}`
+}
+
+function LoudnessSummary({ report }: { report: ReportData }) {
+  if (!report.loudness) return null
+  const program = report.loudness.virtual_mono_program
+  const metrics = [
+    ['Integrated', loudnessValue(program.integrated_lufs, 'LUFS'), 'Gated loudness of the virtual summed program'],
+    ['Max momentary', loudnessValue(program.maximum_momentary_lufs, 'LUFS'), 'Loudest 400 ms window'],
+    ['Max short-term', loudnessValue(program.maximum_short_term_lufs, 'LUFS'), 'Loudest 3 second window'],
+    ['Loudness range', `${program.loudness_range_lu.toFixed(1)} LU`, 'Dynamics after EBU loudness gating'],
+    ['True peak', loudnessValue(program.maximum_true_peak_dbtp, 'dBTP'), 'Four-times oversampled program peak'],
+  ]
+  return <section className="panel" aria-labelledby="loudness-title">
+    <div className="section-heading"><div><p className="eyebrow">PERCEPTUAL LEVEL</p><h2 id="loudness-title">Program loudness</h2>
+      <p>{report.loudness.standard}. The program is the three processed stems summed at unity.</p></div></div>
+    <div className="metrics loudness-metrics">{metrics.map(([label, value, help]) =>
+      <article key={label}><span>{label}</span><strong>{value}</strong><small>{help}</small></article>)}</div>
+  </section>
 }
 
 function HealthSummary({ health }: { health: Health }) {
@@ -193,12 +231,13 @@ function TrackDetails({ report }: { report: ReportData }) {
 function App() {
   const report = window.__PODCAST_REPORT__
   return <main><header><p className="eyebrow">AUTOMIX ANALYSIS</p><h1>Podcast mix report</h1><p className="subtitle">Clear ownership, attenuation, and moments worth reviewing</p></header>
-    <HealthSummary health={report.health} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
+    <HealthSummary health={report.health} /><LoudnessSummary report={report} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
     <ReviewMoments report={report} /><TrackDetails report={report} /></main>
 }
 
 const style = document.createElement('style')
 style.textContent = `
+.loudness-metrics{grid-template-columns:repeat(5,1fr);margin-bottom:0}
 :root{color-scheme:light dark;--page:#f4f6fa;--surface:#fff;--ink:#172033;--muted:#657085;--line:#d9e0ea;--border:#d4dce8;--overlap:#f59e0b;--unowned:#94a3b8}
 @media(prefers-color-scheme:dark){:root{--page:#0c1119;--surface:#141b27;--ink:#f5f7fb;--muted:#a8b3c5;--line:#293346;--border:#344156;--overlap:#fbbf24;--unowned:#64748b}}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 Inter,ui-sans-serif,system-ui,sans-serif}main{width:min(1120px,100%);margin:auto;padding:40px 24px 56px}header{margin-bottom:30px}.eyebrow{margin:0 0 6px;color:#6687ff;font-size:.7rem;font-weight:750;letter-spacing:.14em}h1{margin:0;font-size:clamp(2rem,4vw,2.8rem);letter-spacing:-.04em}h2{margin:0;font-size:1.2rem;letter-spacing:-.015em}.subtitle,.section-heading p,.empty{color:var(--muted)}.subtitle{margin:7px 0 0}.section-heading{display:flex;justify-content:space-between;gap:20px;margin-bottom:18px}.section-heading p:not(.eyebrow){margin:5px 0 0;font-size:.86rem}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.metrics article,.panel,.track-grid article{background:var(--surface);border:1px solid var(--border);border-radius:14px}.metrics article{padding:16px;display:flex;flex-direction:column}.metrics span{color:var(--muted);font-size:.77rem}.metrics strong{font-size:1.55rem;margin:4px 0}.metrics small{color:var(--muted);font-size:.72rem}.panel{padding:22px;margin-top:16px}.lanes{display:grid;gap:9px}.lane{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:12px;align-items:center}.lane-label{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}.lane-label i,.track-grid article>span i{width:9px;height:9px;border-radius:50%;flex:none}.cells{display:grid;height:30px;gap:1px;background:var(--line);overflow:hidden;border-radius:4px}.cells>span{min-width:0}.event-lane .cells{height:10px;background:transparent}.overlap{background:var(--overlap)!important}.unowned{background:var(--unowned)!important}.time-axis{display:flex;justify-content:space-between;margin:7px 0 0 min(202px,25%);color:var(--muted);font-size:.72rem;font-variant-numeric:tabular-nums}.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;color:var(--muted);font-size:.76rem}.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:14px;height:9px;border-radius:2px;background:#6687ff}.legend .low{opacity:.16}.legend .high{opacity:.9}.share-list{display:grid;gap:10px}.share-row{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center}.share-row>span{color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}.stack{height:24px;display:flex;background:var(--line);overflow:hidden;border-radius:4px}.stack i{display:block;min-width:0}.moments{list-style:none;padding:0;margin:0}.moments li{display:grid;grid-template-columns:130px 1fr auto;gap:14px;padding:11px 0;border-top:1px solid var(--line);align-items:center}.moments strong,.moments b{font-variant-numeric:tabular-nums}.moments span{color:var(--muted)}.moments b{font-size:.8rem}.track-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.track-grid article{padding:16px}.track-grid article>span{display:flex;align-items:center;gap:7px;font-weight:700;overflow-wrap:anywhere}.track-grid dl{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0 0}.track-grid dl div{min-width:0}.track-grid dt{color:var(--muted);font-size:.72rem}.track-grid dd{margin:2px 0 0;font-weight:650;font-size:.84rem;font-variant-numeric:tabular-nums;white-space:nowrap}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

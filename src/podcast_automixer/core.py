@@ -15,6 +15,8 @@ import soundfile as sf
 from scipy.ndimage import maximum_filter1d
 from scipy.signal import resample_poly
 
+from .loudness import k_weight
+
 
 class AutomixError(RuntimeError):
     """A user-actionable automixing failure."""
@@ -129,7 +131,9 @@ def analyze(
                 if not len(audio):
                     break
                 frame_offset = offset // samples_per_frame
-                db = _frame_db(audio, samples_per_frame)
+                # Compare microphones using perceptually weighted energy while VAD remains
+                # responsible for deciding whether the sound is speech-like.
+                db = _frame_db(k_weight(audio, sr), samples_per_frame)
                 end = min(analysis_frames, frame_offset + len(db))
                 usable = end - frame_offset
                 energies[channel, frame_offset:end] = db[:usable]
@@ -324,7 +328,6 @@ def write_report(
         },
     }
     destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
 
 
 def write_diagnostics(

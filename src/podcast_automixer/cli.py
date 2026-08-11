@@ -26,6 +26,7 @@ from .core import (
     write_diagnostics,
     write_report,
 )
+from .loudness import analyze_rendered_loudness
 from .report import write_html_report
 
 console = Console()
@@ -196,6 +197,7 @@ def main() -> None:
             )
 
         report = outputs[0].with_name("podcast-automix-report.json")
+        analysis_report["loudness"] = analyze_rendered_loudness(outputs)
         write_report(report, infos, settings, gains, analysis_report)
         html_report = outputs[0].with_name("podcast-automix-report.html")
         write_html_report(html_report, infos, settings, gains, active, analysis_report)

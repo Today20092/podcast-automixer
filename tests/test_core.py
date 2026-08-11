@@ -16,7 +16,41 @@ from podcast_automixer.core import (
     make_gain_envelopes,
     write_diagnostics,
 )
+from podcast_automixer.loudness import analyze_rendered_loudness, k_weight
 from podcast_automixer.report import build_report_insights, write_html_report
+
+
+def test_k_weighting_favors_voice_band_over_low_frequency_rumble() -> None:
+    samplerate = 48000
+    seconds = np.arange(samplerate, dtype=np.float64) / samplerate
+    voice_band = np.sin(2 * np.pi * 1000 * seconds)
+    rumble = np.sin(2 * np.pi * 30 * seconds)
+
+    voice_rms = np.sqrt(np.mean(np.square(k_weight(voice_band, samplerate))))
+    rumble_rms = np.sqrt(np.mean(np.square(k_weight(rumble, samplerate))))
+
+    assert voice_rms > rumble_rms * 2
+
+
+def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: Path) -> None:
+    samplerate = 48000
+    seconds = np.arange(samplerate * 4, dtype=np.float64) / samplerate
+    tone = (0.1 * np.sin(2 * np.pi * 1000 * seconds)).astype(np.float32)
+    paths = []
+    for index in range(3):
+        path = tmp_path / f"stem-{index}.wav"
+        sf.write(path, tone, samplerate, subtype="FLOAT")
+        paths.append(path)
+
+    report = analyze_rendered_loudness(paths)
+
+    stem = report["stems"][0]
+    program = report["virtual_mono_program"]
+    assert report["standard"] == "ITU-R BS.1770 / EBU R 128"
+    assert stem["integrated_lufs"] == pytest.approx(-23.05, abs=0.25)
+    assert program["integrated_lufs"] - stem["integrated_lufs"] == pytest.approx(9.54, abs=0.1)
+    assert stem["maximum_true_peak_dbtp"] == pytest.approx(-20.0, abs=0.1)
+    assert len(stem["short_term_timeline"]) == 2
 
 
 def test_report_insights_summarize_ownership_and_choose_duration_windows() -> None:
@@ -152,7 +186,6 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
     assert '"review_moments":[' in text
     assert "A01 & host" in text
     assert '<script src="http' not in text
-
 
 
 def test_parse_powershell_drag_drop_paths_with_backtick_spaces() -> None:
