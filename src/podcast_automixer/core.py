@@ -97,20 +97,29 @@ def _speech_mask(
     count: int,
     trim_start: int = 0,
     trim_samples: int | None = None,
+    *,
+    frame_samples: int,
 ) -> np.ndarray:
     sidechain = resample_poly(audio, 16000, sr).astype(np.float32)
-    stamps = timestamp_fn(sidechain, model, sampling_rate=16000, return_seconds=True)
+    stamps = timestamp_fn(
+        sidechain,
+        model,
+        sampling_rate=16000,
+        return_seconds=False,
+        min_silence_duration_ms=100,
+        speech_pad_ms=30,
+    )
     mask = np.zeros(count, dtype=bool)
     trim_samples = len(audio) - trim_start if trim_samples is None else trim_samples
-    frame_seconds = trim_samples / sr / max(count, 1)
-    trim_start_seconds = trim_start / sr
     for stamp in stamps:
-        relative_start = float(stamp["start"]) - trim_start_seconds
-        relative_end = float(stamp["end"]) - trim_start_seconds
-        if relative_end <= 0 or relative_start >= trim_samples / sr:
+        # Silero returns coordinates in the 16 kHz sidechain. Convert starts down
+        # and ends up so resampling cannot discard any detected speech.
+        relative_start = int(stamp["start"]) * sr // 16000 - trim_start
+        relative_end = math.ceil(int(stamp["end"]) * sr / 16000) - trim_start
+        if relative_end <= 0 or relative_start >= trim_samples:
             continue
-        start = max(0, int(relative_start / frame_seconds))
-        end = min(count, math.ceil(relative_end / frame_seconds))
+        start = max(0, relative_start // frame_samples)
+        end = min(count, math.ceil(relative_end / frame_samples))
         mask[start:end] = True
     return mask
 
@@ -171,6 +180,7 @@ def analyze(
                     len(db),
                     start_frame + offset - context_start,
                     len(audio),
+                    frame_samples=samples_per_frame,
                 )[:usable]
                 offset += len(audio)
                 remaining -= len(audio)

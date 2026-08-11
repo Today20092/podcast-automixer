@@ -70,7 +70,7 @@ def test_analysis_is_segment_size_independent_across_speech_boundaries(
         starts = np.flatnonzero(edges == 1)
         ends = np.flatnonzero(edges == -1)
         return [
-            {"start": start / samplerate, "end": end / samplerate}
+            {"start": start, "end": end}
             for start, end in zip(starts, ends, strict=True)
         ]
 
@@ -229,10 +229,55 @@ def test_vad_adapter_passes_audio_before_model() -> None:
         assert isinstance(audio, np.ndarray)
         assert model is sentinel
         assert kwargs["sampling_rate"] == 16000
-        return [{"start": 0.0, "end": 0.02}]
+        assert kwargs["return_seconds"] is False
+        assert kwargs["min_silence_duration_ms"] == 100
+        assert kwargs["speech_pad_ms"] == 30
+        return [{"start": 0, "end": 320}]
 
-    mask = _speech_mask(np.ones(960, dtype=np.float32), 48000, sentinel, timestamps, 1)
+    mask = _speech_mask(
+        np.ones(960, dtype=np.float32),
+        48000,
+        sentinel,
+        timestamps,
+        1,
+        frame_samples=960,
+    )
     assert mask.tolist() == [True]
+
+
+def test_vad_adapter_maps_sample_boundaries_with_floor_and_ceiling() -> None:
+    def timestamps(audio, model, **kwargs):
+        del audio, model, kwargs
+        return [{"start": 321, "end": 641}]
+
+    mask = _speech_mask(
+        np.ones(3840, dtype=np.float32),
+        48000,
+        object(),
+        timestamps,
+        4,
+        frame_samples=960,
+    )
+
+    assert mask.tolist() == [False, True, True, False]
+
+
+def test_vad_adapter_maps_partial_final_frame() -> None:
+    def timestamps(audio, model, **kwargs):
+        del audio, model, kwargs
+        return [{"start": 320, "end": 333}]
+
+    mask = _speech_mask(
+        np.ones(1000, dtype=np.float32),
+        48000,
+        object(),
+        timestamps,
+        2,
+        trim_samples=1000,
+        frame_samples=960,
+    )
+
+    assert mask.tolist() == [False, True]
 
 
 def test_bext_timestamp_is_preserved_and_offset(tmp_path: Path) -> None:
