@@ -12,7 +12,6 @@ from typing import Any
 
 import numpy as np
 import soundfile as sf
-from scipy.ndimage import maximum_filter1d
 from scipy.signal import resample_poly
 
 from .loudness import k_weight
@@ -181,12 +180,11 @@ def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:
     hold = math.ceil(settings.hold_ms / frame_ms)
     expanded = np.zeros_like(active)
     for channel in range(active.shape[0]):
-        held = maximum_filter1d(
-            active[channel].astype(np.uint8), size=hold + 1, origin=-(hold // 2)
-        )
-        indices = np.flatnonzero(held)
-        expanded[channel, np.maximum(0, indices - preroll)] = True
-        expanded[channel] |= held.astype(bool)
+        indices = np.flatnonzero(active[channel])
+        changes = np.zeros(active.shape[1] + 1, dtype=np.int32)
+        np.add.at(changes, np.maximum(0, indices - preroll), 1)
+        np.add.at(changes, np.minimum(active.shape[1], indices + hold + 1), -1)
+        expanded[channel] = np.cumsum(changes[:-1]) > 0
 
     floor_gain = 10.0 ** (settings.attenuation_db / 20.0)
     targets = np.where(expanded, 1.0, floor_gain)

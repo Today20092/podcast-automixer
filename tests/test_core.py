@@ -97,6 +97,42 @@ def test_gain_envelope_preserves_active_and_attenuates_inactive() -> None:
     assert np.all(gains <= 1.0)
 
 
+def test_gain_envelope_applies_default_preroll_and_hold_on_intended_sides() -> None:
+    active = np.zeros((3, 40), dtype=bool)
+    active[0, 10] = True
+
+    gains = make_gain_envelopes(active, Settings())
+    floor_gain = 10 ** (-6 / 20)
+
+    # Eight preroll frames: opening starts at frame 2. Twenty hold frames:
+    # closing starts after frame 30.
+    assert gains[0, :2] == pytest.approx(floor_gain)
+    assert gains[0, 2] > gains[0, 1]
+    assert np.all(np.diff(gains[0, 2:31]) >= 0)
+    assert gains[0, 31] < gains[0, 30]
+
+
+def test_gain_envelope_expands_exact_range_and_clips_at_boundaries() -> None:
+    settings = Settings(
+        frame_ms=20,
+        preroll_ms=40,
+        hold_ms=60,
+        open_ms=20,
+        close_ms=20,
+    )
+    active = np.zeros((3, 12), dtype=bool)
+    active[0, 0] = True
+    active[1, 6] = True
+    active[2, 11] = True
+
+    gains = make_gain_envelopes(active, settings)
+    floor_gain = 10 ** (-6 / 20)
+
+    assert gains[0] == pytest.approx([1.0] * 4 + [floor_gain] * 8)
+    assert gains[1] == pytest.approx([floor_gain] * 4 + [1.0] * 6 + [floor_gain] * 2)
+    assert gains[2] == pytest.approx([floor_gain] * 9 + [1.0] * 3)
+
+
 def test_validation_rejects_mismatched_frame_counts(tmp_path: Path) -> None:
     paths = []
     for index, frames in enumerate((100, 100, 99)):
