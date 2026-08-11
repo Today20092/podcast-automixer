@@ -10,13 +10,28 @@ import soundfile as sf
 from scipy.signal import lfilter, resample_poly
 
 
+class KWeightFilter:
+    """Stateful ITU-R BS.1770 K-weighting cascade for streamed mono audio."""
+
+    def __init__(self, samplerate: int) -> None:
+        self.filters = []
+        for stage in pyln.Meter(samplerate)._filters.values():
+            state = np.zeros(max(len(stage.a), len(stage.b)) - 1)
+            self.filters.append((stage.b, stage.a, state))
+
+    def process(self, audio: np.ndarray) -> np.ndarray:
+        weighted = audio.astype(np.float64, copy=True)
+        updated = []
+        for b, a, state in self.filters:
+            weighted, state = lfilter(b, a, weighted, zi=state)
+            updated.append((b, a, state))
+        self.filters = updated
+        return weighted
+
+
 def k_weight(audio: np.ndarray, samplerate: int) -> np.ndarray:
     """Apply the ITU-R BS.1770 K-weighting cascade to mono audio."""
-    weighted = audio.astype(np.float64, copy=True)
-    meter = pyln.Meter(samplerate)
-    for stage in meter._filters.values():  # pyloudnorm exposes coefficients on its stages.
-        weighted = lfilter(stage.b, stage.a, weighted)
-    return weighted
+    return KWeightFilter(samplerate).process(audio)
 
 
 def _loudness(energy: float) -> float:

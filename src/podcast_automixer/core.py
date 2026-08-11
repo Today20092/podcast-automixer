@@ -14,7 +14,7 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
 
-from .loudness import k_weight
+from .loudness import KWeightFilter
 
 
 class AutomixError(RuntimeError):
@@ -90,15 +90,27 @@ def _frame_db(audio: np.ndarray, frame_samples: int) -> np.ndarray:
 
 
 def _speech_mask(
-    audio: np.ndarray, sr: int, model: Any, timestamp_fn: Any, count: int
+    audio: np.ndarray,
+    sr: int,
+    model: Any,
+    timestamp_fn: Any,
+    count: int,
+    trim_start: int = 0,
+    trim_samples: int | None = None,
 ) -> np.ndarray:
     sidechain = resample_poly(audio, 16000, sr).astype(np.float32)
     stamps = timestamp_fn(sidechain, model, sampling_rate=16000, return_seconds=True)
     mask = np.zeros(count, dtype=bool)
-    frame_seconds = len(audio) / sr / max(count, 1)
+    trim_samples = len(audio) - trim_start if trim_samples is None else trim_samples
+    frame_seconds = trim_samples / sr / max(count, 1)
+    trim_start_seconds = trim_start / sr
     for stamp in stamps:
-        start = max(0, int(float(stamp["start"]) / frame_seconds))
-        end = min(count, math.ceil(float(stamp["end"]) / frame_seconds))
+        relative_start = float(stamp["start"]) - trim_start_seconds
+        relative_end = float(stamp["end"]) - trim_start_seconds
+        if relative_end <= 0 or relative_start >= trim_samples / sr:
+            continue
+        start = max(0, int(relative_start / frame_seconds))
+        end = min(count, math.ceil(relative_end / frame_seconds))
         mask[start:end] = True
     return mask
 
@@ -118,10 +130,14 @@ def analyze(
     speech = np.zeros((3, analysis_frames), dtype=bool)
     model, timestamp_fn = _load_vad()
     segment_samples = settings.segment_seconds * sr
+    # Silero makes utterance-level decisions, so give each bounded segment context
+    # on both sides and deterministically keep only the segment's central frames.
+    vad_context_samples = sr
 
     for channel, info in enumerate(infos):
         with sf.SoundFile(info.path) as source:
             source.seek(start_frame)
+            weighting = KWeightFilter(sr)
             offset = 0
             remaining = total
             while remaining:
@@ -132,12 +148,29 @@ def analyze(
                 frame_offset = offset // samples_per_frame
                 # Compare microphones using perceptually weighted energy while VAD remains
                 # responsible for deciding whether the sound is speech-like.
-                db = _frame_db(k_weight(audio, sr), samples_per_frame)
+                db = _frame_db(weighting.process(audio), samples_per_frame)
                 end = min(analysis_frames, frame_offset + len(db))
                 usable = end - frame_offset
                 energies[channel, frame_offset:end] = db[:usable]
+                context_start = max(start_frame, start_frame + offset - vad_context_samples)
+                context_end = min(
+                    start_frame + total,
+                    start_frame + offset + len(audio) + vad_context_samples,
+                )
+                current_position = source.tell()
+                source.seek(context_start)
+                vad_audio = source.read(
+                    context_end - context_start, dtype="float32", always_2d=False
+                )
+                source.seek(current_position)
                 speech[channel, frame_offset:end] = _speech_mask(
-                    audio, sr, model, timestamp_fn, len(db)
+                    vad_audio,
+                    sr,
+                    model,
+                    timestamp_fn,
+                    len(db),
+                    start_frame + offset - context_start,
+                    len(audio),
                 )[:usable]
                 offset += len(audio)
                 remaining -= len(audio)

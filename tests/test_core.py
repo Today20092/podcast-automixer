@@ -13,11 +13,12 @@ from podcast_automixer.core import (
     _inject_bext,
     _read_riff_chunk,
     _speech_mask,
+    analyze,
     inspect_inputs,
     make_gain_envelopes,
     write_diagnostics,
 )
-from podcast_automixer.loudness import analyze_rendered_loudness, k_weight
+from podcast_automixer.loudness import KWeightFilter, analyze_rendered_loudness, k_weight
 from podcast_automixer.report import build_report_insights, write_html_report
 
 
@@ -31,6 +32,56 @@ def test_k_weighting_favors_voice_band_over_low_frequency_rumble() -> None:
     rumble_rms = np.sqrt(np.mean(np.square(k_weight(rumble, samplerate))))
 
     assert voice_rms > rumble_rms * 2
+
+
+def test_streaming_k_weighting_matches_single_pass() -> None:
+    samplerate = 48000
+    rng = np.random.default_rng(42)
+    audio = rng.normal(0, 0.1, samplerate * 2)
+    expected = k_weight(audio, samplerate)
+
+    weighting = KWeightFilter(samplerate)
+    actual = np.concatenate(
+        [weighting.process(audio[:12345]), weighting.process(audio[12345:54321]),
+         weighting.process(audio[54321:])]
+    )
+
+    assert actual == pytest.approx(expected, abs=1e-12)
+
+
+def test_analysis_is_segment_size_independent_across_speech_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    samplerate = 16000
+    audio = np.zeros(samplerate * 3, dtype=np.float32)
+    t = np.arange(len(audio)) / samplerate
+    utterances = ((t >= 0.8) & (t < 1.2)) | ((t >= 1.8) & (t < 2.2))
+    audio[utterances] = 0.2 * np.sin(2 * np.pi * 440 * t[utterances])
+    paths = []
+    for index, scale in enumerate((1.0, 0.1, 0.05)):
+        path = tmp_path / f"stem-{index}.wav"
+        sf.write(path, audio * scale, samplerate, subtype="FLOAT")
+        paths.append(path)
+
+    def timestamps(sidechain, model, **kwargs):
+        del model, kwargs
+        voiced = np.abs(sidechain) > 0.005
+        edges = np.diff(np.pad(voiced.astype(np.int8), (1, 1)))
+        starts = np.flatnonzero(edges == 1)
+        ends = np.flatnonzero(edges == -1)
+        return [
+            {"start": start / samplerate, "end": end / samplerate}
+            for start, end in zip(starts, ends, strict=True)
+        ]
+
+    monkeypatch.setattr("podcast_automixer.core._load_vad", lambda: (object(), timestamps))
+    infos = inspect_inputs(paths)
+    _, one_second, _ = analyze(infos, Settings(segment_seconds=1))
+    _, two_seconds, _ = analyze(infos, Settings(segment_seconds=2))
+
+    assert np.array_equal(one_second, two_seconds)
+    assert np.all(one_second[0, 45:55])
+    assert np.all(one_second[0, 95:105])
 
 
 def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: Path) -> None:
