@@ -18,7 +18,12 @@ from podcast_automixer.core import (
     make_gain_envelopes,
     write_diagnostics,
 )
-from podcast_automixer.loudness import KWeightFilter, analyze_rendered_loudness, k_weight
+from podcast_automixer.loudness import (
+    KWeightFilter,
+    _StreamingMeter,
+    analyze_rendered_loudness,
+    k_weight,
+)
 from podcast_automixer.report import build_report_insights, write_html_report
 
 
@@ -101,8 +106,31 @@ def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: P
     assert report["standard"] == "ITU-R BS.1770 / EBU R 128"
     assert stem["integrated_lufs"] == pytest.approx(-23.05, abs=0.25)
     assert program["integrated_lufs"] - stem["integrated_lufs"] == pytest.approx(9.54, abs=0.1)
-    assert stem["maximum_true_peak_dbtp"] == pytest.approx(-20.0, abs=0.1)
+    assert stem["maximum_estimated_true_peak_dbtp"] == pytest.approx(-20.0, abs=0.1)
     assert len(stem["short_term_timeline"]) == 2
+
+
+def test_estimated_peak_is_continuous_across_chunk_boundaries() -> None:
+    samplerate = 48000
+    samples = np.arange(400, dtype=np.float64)
+    # A phase-offset high-frequency tone has intersample peaks and puts one at the split.
+    audio = 0.5 * np.sin(2 * np.pi * 17000 * samples / samplerate + 0.37)
+
+    whole = _StreamingMeter(samplerate)
+    whole.add(audio)
+    chunked = _StreamingMeter(samplerate)
+    chunked.add(audio[:173])
+    chunked.add(audio[173:])
+
+    key = "maximum_estimated_true_peak_dbtp"
+    assert chunked.result()[key] == pytest.approx(whole.result()[key], abs=1e-12)
+
+
+def test_silent_estimated_peak_serializes_as_null() -> None:
+    meter = _StreamingMeter(48000)
+    meter.add(np.zeros(1000, dtype=np.float64))
+
+    assert meter.result()["maximum_estimated_true_peak_dbtp"] is None
 
 
 def test_report_insights_summarize_ownership_and_choose_duration_windows() -> None:

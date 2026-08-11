@@ -50,14 +50,16 @@ class _StreamingMeter:
         self.momentary_energies: list[float] = []
         self.short_term_points: list[dict[str, float]] = []
         self.sample_count = 0
-        self.true_peak = 0.0
+        self.peak_audio: list[np.ndarray] = []
 
     def add(self, audio: np.ndarray) -> None:
         raw = audio.astype(np.float64, copy=False)
         if not len(raw):
             return
-        # Four-times oversampling is the common BS.1770 true-peak measurement rate.
-        self.true_peak = max(self.true_peak, float(np.max(np.abs(resample_poly(raw, 4, 1)))))
+        # Defer oversampling until result() so the FIR sees one continuous signal rather
+        # than restarting at each input chunk. This is intentionally labelled estimated:
+        # scipy's generic resampler is not a verified BS.1770 true-peak filter.
+        self.peak_audio.append(raw.copy())
         weighted = raw
         updated = []
         for b, a, state in self.filters:
@@ -114,6 +116,11 @@ class _StreamingMeter:
         else:
             lra = 0.0
         finite_momentary = loudness[np.isfinite(loudness)]
+        if self.peak_audio:
+            oversampled = resample_poly(np.concatenate(self.peak_audio), 4, 1)
+            estimated_peak = float(np.max(np.abs(oversampled)))
+        else:
+            estimated_peak = 0.0
 
         def finite(value: float) -> float | None:
             return value if math.isfinite(value) else None
@@ -127,8 +134,8 @@ class _StreamingMeter:
                 float(np.max(short_absolute)) if len(short_absolute) else None
             ),
             "loudness_range_lu": lra,
-            "maximum_true_peak_dbtp": (
-                20.0 * math.log10(self.true_peak) if self.true_peak > 0 else None
+            "maximum_estimated_true_peak_dbtp": (
+                20.0 * math.log10(estimated_peak) if estimated_peak > 0 else None
             ),
             "short_term_timeline": [
                 {**point, "lufs": finite(point["lufs"])} for point in self.short_term_points

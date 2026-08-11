@@ -56,7 +56,7 @@ interface LoudnessMetrics {
   maximum_momentary_lufs: number | null
   maximum_short_term_lufs: number | null
   loudness_range_lu: number
-  maximum_true_peak_dbtp: number | null
+  maximum_estimated_true_peak_dbtp: number | null
   short_term_timeline: readonly { seconds: number; lufs: number | null }[]
 }
 
@@ -104,7 +104,7 @@ function LoudnessSummary({ report }: { report: ReportData }) {
     ['Max momentary', loudnessValue(program.maximum_momentary_lufs, 'LUFS'), 'Loudest 400 ms window'],
     ['Max short-term', loudnessValue(program.maximum_short_term_lufs, 'LUFS'), 'Loudest 3 second window'],
     ['Loudness range', `${program.loudness_range_lu.toFixed(1)} LU`, 'Dynamics after EBU loudness gating'],
-    ['True peak', loudnessValue(program.maximum_true_peak_dbtp, 'dBTP'), 'Four-times oversampled program peak'],
+    ['Estimated true peak', loudnessValue(program.maximum_estimated_true_peak_dbtp, 'dBTP'), 'Four-times oversampled program peak estimate'],
   ]
   return <section className="panel" aria-labelledby="loudness-title">
     <div className="section-heading"><div><p className="eyebrow">PERCEPTUAL LEVEL</p><h2 id="loudness-title">Program loudness</h2>
