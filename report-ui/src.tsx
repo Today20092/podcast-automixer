@@ -67,6 +67,8 @@ interface LoudnessReport {
 }
 
 interface ReportData {
+  openingTimeConstantMs: number
+  closingTimeConstantMs: number
   attenuationDb: number
   health: Health
   window_seconds: number
@@ -76,6 +78,19 @@ interface ReportData {
   track_summary: readonly TrackSummary[]
   tracks: readonly TrackRow[]
   loudness: LoudnessReport | null
+}
+
+function TimeConstantSummary({ report }: { report: ReportData }) {
+  const metrics = [
+    ['Opening time constant', `${report.openingTimeConstantMs} ms`],
+    ['Closing time constant', `${report.closingTimeConstantMs} ms`],
+  ]
+  return <section className="panel" aria-labelledby="timing-title">
+    <div className="section-heading"><div><p className="eyebrow">GAIN TIMING</p><h2 id="timing-title">Envelope response</h2>
+      <p>A time constant reaches about 63% of a change; about 95% takes 3× the value and 99% takes 5×.</p></div></div>
+    <div className="metrics">{metrics.map(([label, value]) =>
+      <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
+  </section>
 }
 
 declare global {
@@ -231,7 +246,7 @@ function TrackDetails({ report }: { report: ReportData }) {
 function App() {
   const report = window.__PODCAST_REPORT__
   return <main><header><p className="eyebrow">AUTOMIX ANALYSIS</p><h1>Podcast mix report</h1><p className="subtitle">Clear ownership, attenuation, and moments worth reviewing</p></header>
-    <HealthSummary health={report.health} /><LoudnessSummary report={report} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
+    <HealthSummary health={report.health} /><TimeConstantSummary report={report} /><LoudnessSummary report={report} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
     <ReviewMoments report={report} /><TrackDetails report={report} /></main>
 }
 

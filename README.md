@@ -46,6 +46,10 @@ untouched, and the replacement files can be inspected before they enter the edit
 
 ## Recommended Editing Workflow
 
+Opening and closing controls are time constants, not exact fade durations. Each value
+reaches about 63% of a gain change; roughly 95% takes three times the value and 99% takes
+five times the value.
+
 Use Podcast Automixer after the podcast has been recorded and synchronized, but before
 cutting or otherwise editing the program:
 

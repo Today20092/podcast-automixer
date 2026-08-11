@@ -372,7 +372,11 @@ def write_report(
     payload = {
         "version": 1,
         "inputs": [{**asdict(info), "path": str(info.path)} for info in infos],
-        "settings": asdict(settings),
+        "settings": {
+            **asdict(settings),
+            "opening_time_constant_ms": settings.open_ms,
+            "closing_time_constant_ms": settings.close_ms,
+        },
         "analysis": analysis_report,
         "gain_reduction_db": {
             "mean": (20 * np.log10(np.maximum(gains, 1e-9))).mean(axis=1).tolist(),

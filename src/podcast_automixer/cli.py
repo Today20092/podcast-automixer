@@ -89,6 +89,20 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--preview-duration", type=float, default=30.0, metavar="SECONDS")
     result.add_argument("--attenuation", type=float, default=-6.0, metavar="DB")
     result.add_argument("--ambiguity", type=float, default=9.0, metavar="DB")
+    result.add_argument(
+        "--open-ms",
+        type=float,
+        default=50.0,
+        metavar="MS",
+        help="Opening time constant in milliseconds (about 63%% complete)",
+    )
+    result.add_argument(
+        "--close-ms",
+        type=float,
+        default=500.0,
+        metavar="MS",
+        help="Closing time constant in milliseconds (about 63%% complete)",
+    )
     result.add_argument("--advanced", action="store_true")
     result.add_argument("--overwrite", action="store_true")
     result.add_argument(
@@ -101,11 +115,18 @@ def main() -> None:
     args = parser().parse_args()
     try:
         paths = args.files or _prompt_paths()
-        settings = Settings(attenuation_db=args.attenuation, ambiguity_db=args.ambiguity)
+        settings = Settings(
+            attenuation_db=args.attenuation,
+            ambiguity_db=args.ambiguity,
+            open_ms=args.open_ms,
+            close_ms=args.close_ms,
+        )
         if args.advanced and not args.files:
             settings = Settings(
                 attenuation_db=FloatPrompt.ask("Inactive attenuation (dB)", default=-6.0),
                 ambiguity_db=FloatPrompt.ask("Ownership ambiguity (dB)", default=9.0),
+                open_ms=FloatPrompt.ask("Opening time constant (ms)", default=50.0),
+                close_ms=FloatPrompt.ask("Closing time constant (ms)", default=500.0),
             )
         infos = inspect_inputs(paths)
         table = Table(title="Validated synchronized inputs")

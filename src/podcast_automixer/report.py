@@ -142,6 +142,8 @@ def write_html_report(
     colors = ("#3b82f6", "#f59e0b", "#10b981")
     payload = {
         "attenuationDb": settings.attenuation_db,
+        "openingTimeConstantMs": settings.open_ms,
+        "closingTimeConstantMs": settings.close_ms,
         "loudness": analysis_report.get("loudness"),
         **build_report_insights(active, gains, settings.frame_ms),
         "tracks": [

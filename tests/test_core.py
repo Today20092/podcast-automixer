@@ -1,3 +1,4 @@
+import json
 import math
 import struct
 from pathlib import Path
@@ -6,7 +7,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from podcast_automixer.cli import parse_dropped_paths
+from podcast_automixer.cli import parse_dropped_paths, parser
 from podcast_automixer.core import (
     AutomixError,
     Settings,
@@ -18,6 +19,7 @@ from podcast_automixer.core import (
     inspect_inputs,
     make_gain_envelopes,
     write_diagnostics,
+    write_report,
 )
 from podcast_automixer.loudness import (
     KWeightFilter,
@@ -412,12 +414,45 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
     assert "Attenuation overview" in text
     assert "Speaker ownership by section" in text
     assert "Moments to review" in text
+    assert "Opening time constant" in text
+    assert "Closing time constant" in text
+    assert "about 63%" in text
     assert '"timeline":[' in text
     assert '"health":{' in text
     assert '"speaker_share":[' in text
     assert '"review_moments":[' in text
     assert "A01 & host" in text
     assert '<script src="http' not in text
+
+
+def test_cli_help_labels_envelope_controls_as_time_constants() -> None:
+    help_text = parser().format_help()
+
+    assert "--open-ms MS" in help_text
+    assert "Opening time constant in milliseconds" in help_text
+    assert "--close-ms MS" in help_text
+    assert "Closing time constant in milliseconds" in help_text
+
+
+def test_json_report_labels_envelope_time_constants(tmp_path: Path) -> None:
+    source_paths = [tmp_path / f"A0{index}.wav" for index in range(1, 4)]
+    for path in source_paths:
+        sf.write(path, np.zeros(10, dtype=np.float32), 48000, subtype="FLOAT")
+    destination = tmp_path / "report.json"
+
+    write_report(
+        destination,
+        inspect_inputs(source_paths),
+        Settings(open_ms=75, close_ms=600),
+        np.ones((3, 1), dtype=np.float32),
+        {},
+    )
+
+    settings = json.loads(destination.read_text(encoding="utf-8"))["settings"]
+    assert settings["opening_time_constant_ms"] == 75
+    assert settings["closing_time_constant_ms"] == 600
+    assert settings["open_ms"] == 75
+    assert settings["close_ms"] == 600
 
 
 def test_parse_powershell_drag_drop_paths_with_backtick_spaces() -> None:
