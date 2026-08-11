@@ -1,0 +1,30 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local environments and tooling
+.venv/
+.env
+.env.*
+*.tmp.txt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Generated automixer output
+*_auto-mixed.wav
+*_auto-mixed.json
+*_auto-mixed.csv
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
