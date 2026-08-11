@@ -24,9 +24,9 @@ from .core import (
     output_path,
     render,
     write_diagnostics,
-    write_html_report,
     write_report,
 )
+from .report import write_html_report
 
 console = Console()
 
@@ -198,7 +198,7 @@ def main() -> None:
         report = outputs[0].with_name("podcast-automix-report.json")
         write_report(report, infos, settings, gains, analysis_report)
         html_report = outputs[0].with_name("podcast-automix-report.html")
-        write_html_report(html_report, infos, settings, gains, analysis_report)
+        write_html_report(html_report, infos, settings, gains, active, analysis_report)
         if args.diagnostics:
             diagnostics = outputs[0].with_name("podcast-automix-diagnostics.csv")
             write_diagnostics(diagnostics, active, gains, settings.frame_ms)

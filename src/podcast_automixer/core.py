@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import html
 import json
 import math
 import os
@@ -326,98 +325,6 @@ def write_report(
     }
     destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-
-def write_html_report(
-    destination: Path,
-    infos: list[AudioInfo],
-    settings: Settings,
-    gains: np.ndarray,
-    analysis_report: dict[str, Any],
-) -> None:
-    """Write a portable visual summary with no external runtime dependencies."""
-    gain_db = 20 * np.log10(np.maximum(gains, 1e-9))
-    tracks = [
-        {
-            "name": info.path.stem,
-            "active": float(analysis_report["active_percent"][index]),
-            "mean_gain": float(gain_db[index].mean()),
-            "calibration": float(analysis_report["calibration_db"][index]),
-            "noise_floor": float(analysis_report["noise_floor_db"][index]),
-            "minimum_gain": float(gain_db[index].min()),
-        }
-        for index, info in enumerate(infos)
-    ]
-
-    def chart(title: str, key: str, unit: str, lower: float, upper: float) -> str:
-        span = upper - lower
-        bars = []
-        for index, track in enumerate(tracks):
-            value = track[key]
-            start = min(0.0, value)
-            width = abs(value) / span * 100
-            left = (start - lower) / span * 100
-            label = html.escape(track["name"])
-            details = html.escape(
-                f'{track["name"]}: {value:.2f}{unit}; noise floor '
-                f'{track["noise_floor"]:.2f} dB; minimum gain '
-                f'{track["minimum_gain"]:.2f} dB'
-            )
-            bars.append(
-                f'<li tabindex="0" aria-label="{details}">'
-                f'<span class="track">{label}</span>'
-                '<span class="plot">'
-                f'<span class="bar track-{index + 1}" style="left:{left:.3f}%;width:{width:.3f}%"></span>'
-                f'<span class="value" style="left:{max(2.0, min(94.0, (value - lower) / span * 100)):.3f}%">'
-                f'{value:.2f}{unit}</span></span></li>'
-            )
-        return (
-            f'<section class="chart" aria-labelledby="{key}-title">'
-            f'<h2 id="{key}-title">{html.escape(title)}</h2>'
-            f'<div class="scale"><span>{lower:g}{unit}</span><span>0{unit}</span>'
-            f'<span>{upper:g}{unit}</span></div><ol>{"".join(bars)}</ol></section>'
-        )
-
-    document = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Podcast automix report</title>
-<style>
-:root {{ color-scheme: light dark; --bg:#f7f7f5; --fg:#20201e; --muted:#6a6a64;
-  --grid:#d7d7d1; --one:#2563eb; --two:#d97706; --three:#059669; }}
-@media (prefers-color-scheme:dark) {{ :root {{ --bg:#171716; --fg:#ededeb; --muted:#aaa9a2;
-  --grid:#41413d; --one:#60a5fa; --two:#fbbf24; --three:#34d399; }} }}
-* {{ box-sizing:border-box }} body {{ margin:0; background:var(--bg); color:var(--fg);
-  font:15px/1.45 system-ui,sans-serif }} main {{ width:min(960px,100%); margin:auto; padding:32px 20px 48px }}
-h1 {{ margin:0 0 4px; font-size:clamp(1.65rem,4vw,2.35rem) }} .subtitle {{ color:var(--muted); margin:0 0 32px }}
-.chart {{ margin:0 0 38px }} h2 {{ font-size:1.05rem; margin:0 0 8px }}
-.scale {{ display:flex; justify-content:space-between; margin-left:min(38%,260px); color:var(--muted); font-size:.78rem }}
-ol {{ list-style:none; margin:0; padding:0 }} li {{ display:grid; grid-template-columns:minmax(120px,260px) 1fr;
-  gap:14px; align-items:center; min-height:48px; border-top:1px solid var(--grid); outline-offset:3px }}
-.track {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap }} .plot {{ position:relative; height:26px;
-  background:linear-gradient(to right,transparent 49.8%,var(--grid) 50%,transparent 50.2%) }}
-.bar {{ position:absolute; top:5px; height:16px; border-radius:2px; min-width:2px }}
-.track-1 {{ background:var(--one) }} .track-2 {{ background:var(--two) }} .track-3 {{ background:var(--three) }}
-.value {{ position:absolute; top:3px; transform:translateX(-50%); font-size:.8rem; font-variant-numeric:tabular-nums;
-  background:var(--bg); padding:1px 3px }}
-.legend {{ display:flex; flex-wrap:wrap; gap:16px; color:var(--muted); font-size:.85rem; margin-top:-18px }}
-.legend span::before {{ content:""; display:inline-block; width:10px; height:10px; margin-right:6px; background:var(--swatch) }}
-@media(max-width:560px) {{ main {{ padding-inline:14px }} li {{ grid-template-columns:1fr; gap:3px; padding:8px 0 }}
-  .scale {{ margin-left:0 }} }}
-</style>
-</head>
-<body><main>
-<h1>Podcast automix report</h1>
-<p class="subtitle">Three synchronized microphone tracks · inactive attenuation {settings.attenuation_db:g} dB</p>
-{chart("Active time", "active", "%", 0, 100)}
-{chart("Mean gain reduction", "mean_gain", " dB", settings.attenuation_db, 0)}
-{chart("Calibration adjustment", "calibration", " dB", -12, 12)}
-<div class="legend" aria-label="Track colors">
-{''.join(f'<span style="--swatch:var(--{name})">{html.escape(track["name"])}</span>' for name, track in zip(("one", "two", "three"), tracks, strict=True))}
-</div>
-</main></body></html>"""
-    destination.write_text(document, encoding="utf-8")
 
 
 def write_diagnostics(

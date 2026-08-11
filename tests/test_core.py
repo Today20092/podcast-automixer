@@ -15,8 +15,42 @@ from podcast_automixer.core import (
     inspect_inputs,
     make_gain_envelopes,
     write_diagnostics,
-    write_html_report,
 )
+from podcast_automixer.report import build_report_insights, write_html_report
+
+
+def test_report_insights_summarize_ownership_and_choose_duration_windows() -> None:
+    active = np.array(
+        [
+            [True, True, False, False, False],
+            [False, True, False, False, False],
+            [False, False, False, True, True],
+        ]
+    )
+    gains = np.where(active, 1.0, 10 ** (-6 / 20)).astype(np.float32)
+
+    insights = build_report_insights(active, gains, frame_ms=1000)
+
+    assert insights["health"] == {
+        "single_owner_percent": 60.0,
+        "multiple_owner_percent": 20.0,
+        "unowned_percent": 20.0,
+        "switches_per_minute": 12.0,
+    }
+    assert insights["window_seconds"] == 1.0
+    assert [row["exclusive_percent"] for row in insights["track_summary"]] == [20.0, 0.0, 40.0]
+    assert insights["speaker_share"][0]["overlap_percent"] == 20.0
+    assert insights["speaker_share"][0]["unowned_percent"] == 20.0
+
+    long_active = np.zeros((3, 120 * 60 * 50), dtype=bool)
+    long_gains = np.ones_like(long_active, dtype=np.float32)
+    long_insights = build_report_insights(long_active, long_gains, frame_ms=20)
+    assert long_insights["window_seconds"] == 15.0
+
+    overlong_active = np.zeros((3, 120 * 60 * 50 + 1), dtype=bool)
+    overlong_gains = np.ones_like(overlong_active, dtype=np.float32)
+    overlong_insights = build_report_insights(overlong_active, overlong_gains, frame_ms=20)
+    assert overlong_insights["window_seconds"] == 30.0
 
 
 def test_gain_envelope_preserves_active_and_attenuates_inactive() -> None:
@@ -103,15 +137,22 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
         "active_percent": [50.0, 75.0, 25.0],
     }
 
-    write_html_report(destination, infos, Settings(), gains, analysis)
+    active = np.array([[True, False], [False, True], [False, False]])
+    write_html_report(destination, infos, Settings(), gains, active, analysis)
 
     text = destination.read_text(encoding="utf-8")
     assert "<!doctype html>" in text
-    assert "Active time" in text
-    assert "Mean gain reduction" in text
-    assert "Calibration adjustment" in text
-    assert "A01 &amp; host" in text
-    assert "https://" not in text
+    assert "Automix health" in text
+    assert "Attenuation overview" in text
+    assert "Speaker ownership by section" in text
+    assert "Moments to review" in text
+    assert '"timeline":[' in text
+    assert '"health":{' in text
+    assert '"speaker_share":[' in text
+    assert '"review_moments":[' in text
+    assert "A01 & host" in text
+    assert '<script src="http' not in text
+
 
 
 def test_parse_powershell_drag_drop_paths_with_backtick_spaces() -> None:
