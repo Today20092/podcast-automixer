@@ -48,7 +48,9 @@ class _StreamingMeter:
         self.momentary = np.empty(0, dtype=np.float64)
         self.short_term = np.empty(0, dtype=np.float64)
         self.momentary_energies: list[float] = []
+        self.short_term_loudness: list[float] = []
         self.short_term_points: list[dict[str, float]] = []
+        self.short_term_sample_offset = 0
         self.sample_count = 0
         self.peak_audio: list[np.ndarray] = []
 
@@ -81,13 +83,36 @@ class _StreamingMeter:
 
     def _consume_short_term(self) -> None:
         window = round(3.0 * self.samplerate)
-        step = self.samplerate
+        step = round(0.1 * self.samplerate)
         while len(self.short_term) >= window:
             energy = float(np.mean(np.square(self.short_term[:window])))
-            self.short_term_points.append(
-                {"seconds": float(len(self.short_term_points)), "lufs": _loudness(energy)}
-            )
+            loudness = _loudness(energy)
+            self.short_term_loudness.append(loudness)
+            # The LRA calculation needs the full 10 Hz distribution, but the report
+            # timeline remains at 1 Hz so long recordings do not produce huge payloads.
+            if (len(self.short_term_loudness) - 1) % 10 == 0:
+                self.short_term_points.append(
+                    {
+                        "seconds": self.short_term_sample_offset / self.samplerate,
+                        "lufs": loudness,
+                    }
+                )
             self.short_term = self.short_term[step:]
+            self.short_term_sample_offset += step
+
+    def _lra_loudness(self) -> np.ndarray:
+        """Return the 10 Hz short-term distribution required by EBU Tech 3342."""
+        silence = np.zeros(round(1.5 * self.samplerate))
+        for b, a, state in self.filters:
+            silence, _ = lfilter(b, a, silence, zi=state.copy())
+        remainder = np.concatenate((self.short_term, silence))
+        values = list(self.short_term_loudness)
+        window = round(3.0 * self.samplerate)
+        step = round(0.1 * self.samplerate)
+        while len(remainder) >= window:
+            values.append(_loudness(float(np.mean(np.square(remainder[:window])))))
+            remainder = remainder[step:]
+        return np.array(values)
 
     def result(self) -> dict[str, Any]:
         if not self.momentary_energies and self.sample_count:
@@ -106,8 +131,10 @@ class _StreamingMeter:
         else:
             integrated = -math.inf
 
-        short_values = np.array([point["lufs"] for point in self.short_term_points])
+        short_values = self._lra_loudness()
         short_absolute = short_values[np.isfinite(short_values) & (short_values >= -70.0)]
+        measured_short = np.array(self.short_term_loudness)
+        measured_short = measured_short[np.isfinite(measured_short)]
         if len(short_absolute):
             short_power = np.power(10.0, (short_absolute + 0.691) / 10.0)
             relative = _loudness(float(np.mean(short_power))) - 20.0
@@ -131,7 +158,7 @@ class _StreamingMeter:
                 float(np.max(finite_momentary)) if len(finite_momentary) else None
             ),
             "maximum_short_term_lufs": (
-                float(np.max(short_absolute)) if len(short_absolute) else None
+                float(np.max(measured_short)) if len(measured_short) else None
             ),
             "loudness_range_lu": lra,
             "maximum_estimated_true_peak_dbtp": (
