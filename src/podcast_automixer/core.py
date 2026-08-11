@@ -243,8 +243,8 @@ def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:
     floor_gain = 10.0 ** (settings.attenuation_db / 20.0)
     targets = np.where(expanded, 1.0, floor_gain)
     result = np.empty_like(targets, dtype=np.float32)
-    open_alpha = min(1.0, frame_ms / settings.open_ms)
-    close_alpha = min(1.0, frame_ms / settings.close_ms)
+    open_alpha = 1.0 - math.exp(-frame_ms / settings.open_ms)
+    close_alpha = 1.0 - math.exp(-frame_ms / settings.close_ms)
     for channel in range(3):
         value = float(targets[channel, 0])
         for index, target in enumerate(targets[channel]):

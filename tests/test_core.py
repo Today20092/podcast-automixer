@@ -1,3 +1,4 @@
+import math
 import struct
 from pathlib import Path
 
@@ -177,6 +178,50 @@ def test_gain_envelope_preserves_active_and_attenuates_inactive() -> None:
     assert np.all(gains <= 1.0)
 
 
+@pytest.mark.parametrize("frame_ms", [10, 20])
+def test_gain_envelope_matches_closed_form_one_pole_response(frame_ms: int) -> None:
+    settings = Settings(
+        frame_ms=frame_ms,
+        preroll_ms=0,
+        hold_ms=0,
+        open_ms=100,
+        close_ms=200,
+    )
+    active = np.zeros((3, 1000 // frame_ms), dtype=bool)
+    start = 100 // frame_ms
+    stop = 500 // frame_ms
+    active[0, start:stop] = True
+
+    gains = make_gain_envelopes(active, settings)
+    floor_gain = 10 ** (settings.attenuation_db / 20)
+    for elapsed_ms in (100, 200, 300):
+        index = start + elapsed_ms // frame_ms - 1
+        expected = 1.0 - (1.0 - floor_gain) * math.exp(-elapsed_ms / settings.open_ms)
+        assert gains[0, index] == pytest.approx(expected, abs=1e-6)
+
+    opening_end = gains[0, stop - 1]
+    for elapsed_ms in (100, 200, 400):
+        index = stop + elapsed_ms // frame_ms - 1
+        expected = floor_gain + (opening_end - floor_gain) * math.exp(
+            -elapsed_ms / settings.close_ms
+        )
+        assert gains[0, index] == pytest.approx(expected, abs=1e-6)
+
+
+def test_gain_envelope_retargets_smoothly_from_current_value() -> None:
+    settings = Settings(frame_ms=20, preroll_ms=0, hold_ms=0, open_ms=100, close_ms=100)
+    active = np.zeros((3, 20), dtype=bool)
+    active[0, 2:7] = True
+    active[0, 9:] = True
+
+    gains = make_gain_envelopes(active, settings)[0]
+
+    assert gains[7] < gains[6]
+    assert gains[8] < gains[7]
+    assert gains[9] > gains[8]
+    assert gains[9] < 1.0
+
+
 def test_gain_envelope_applies_default_preroll_and_hold_on_intended_sides() -> None:
     active = np.zeros((3, 40), dtype=bool)
     active[0, 10] = True
@@ -208,9 +253,13 @@ def test_gain_envelope_expands_exact_range_and_clips_at_boundaries() -> None:
     gains = make_gain_envelopes(active, settings)
     floor_gain = 10 ** (-6 / 20)
 
-    assert gains[0] == pytest.approx([1.0] * 4 + [floor_gain] * 8)
-    assert gains[1] == pytest.approx([floor_gain] * 4 + [1.0] * 6 + [floor_gain] * 2)
-    assert gains[2] == pytest.approx([floor_gain] * 9 + [1.0] * 3)
+    assert gains[0, :4] == pytest.approx([1.0] * 4)
+    assert np.all(np.diff(gains[0, 4:]) < 0)
+    assert gains[1, :4] == pytest.approx([floor_gain] * 4)
+    assert np.all(np.diff(gains[1, 4:10]) > 0)
+    assert np.all(np.diff(gains[1, 10:]) < 0)
+    assert gains[2, :9] == pytest.approx([floor_gain] * 9)
+    assert np.all(np.diff(gains[2, 9:]) > 0)
 
 
 def test_energetic_fallback_uses_each_stems_calibrated_noise_floor() -> None:
