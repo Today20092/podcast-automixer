@@ -147,6 +147,23 @@ def analyze(
     if np.max(energies) <= -119.0:
         raise AutomixError("All three inputs are digital silence.")
 
+    active, calibration, floors = _classify_activity(
+        energies, speech, settings.ambiguity_db
+    )
+
+    gains = make_gain_envelopes(active, settings)
+    report = {
+        "calibration_db": calibration.tolist(),
+        "noise_floor_db": floors.tolist(),
+        "active_percent": (100.0 * np.mean(active, axis=1)).tolist(),
+    }
+    return gains, active, report
+
+
+def _classify_activity(
+    energies: np.ndarray, speech: np.ndarray, ambiguity_db: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Classify ownership using calibrated levels and per-stem energetic evidence."""
     # Calibrate away stable microphone/speaker level differences without erasing local ownership.
     calibration = np.zeros(3, dtype=np.float32)
     for channel in range(3):
@@ -156,22 +173,16 @@ def analyze(
     calibration -= np.median(calibration)
     normalized = energies - calibration[:, None]
     leader = np.max(normalized, axis=0)
-    plausible = normalized >= leader[None, :] - settings.ambiguity_db
+    plausible = normalized >= leader[None, :] - ambiguity_db
     any_speech = np.any(speech, axis=0)
     active = plausible & (speech | any_speech[None, :])
 
     # Preserve energetic human sounds missed by VAD, while ignoring the estimated noise floor.
     floors = np.percentile(energies, 20, axis=1)
-    energetic = leader > np.max(floors + 12.0)
-    active |= plausible & energetic[None, :]
-
-    gains = make_gain_envelopes(active, settings)
-    report = {
-        "calibration_db": calibration.tolist(),
-        "noise_floor_db": floors.tolist(),
-        "active_percent": (100.0 * np.mean(active, axis=1)).tolist(),
-    }
-    return gains, active, report
+    normalized_floors = floors - calibration
+    energetic = normalized > normalized_floors[:, None] + 12.0
+    active |= plausible & energetic
+    return active, calibration, floors
 
 
 def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:

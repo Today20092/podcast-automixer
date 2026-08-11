@@ -9,6 +9,7 @@ from podcast_automixer.cli import parse_dropped_paths
 from podcast_automixer.core import (
     AutomixError,
     Settings,
+    _classify_activity,
     _inject_bext,
     _read_riff_chunk,
     _speech_mask,
@@ -131,6 +132,28 @@ def test_gain_envelope_expands_exact_range_and_clips_at_boundaries() -> None:
     assert gains[0] == pytest.approx([1.0] * 4 + [floor_gain] * 8)
     assert gains[1] == pytest.approx([floor_gain] * 4 + [1.0] * 6 + [floor_gain] * 2)
     assert gains[2] == pytest.approx([floor_gain] * 9 + [1.0] * 3)
+
+
+def test_energetic_fallback_uses_each_stems_calibrated_noise_floor() -> None:
+    energies = np.array(
+        [
+            [-20.0, -60.0, -60.0, -30.0, -60.0, -60.0, -60.0, -60.0],
+            [-35.0, -10.0, -35.0, -34.0, -35.0, -35.0, -35.0, -35.0],
+            [-70.0, -70.0, -30.0, -70.0, -70.0, -70.0, -70.0, -70.0],
+        ],
+        dtype=np.float32,
+    )
+    speech = np.zeros_like(energies, dtype=bool)
+    speech[0, 0] = True
+    speech[1, 1] = True
+    speech[2, 2] = True
+
+    active, calibration, floors = _classify_activity(energies, speech, ambiguity_db=3.0)
+
+    assert calibration.tolist() == pytest.approx([0.0, 10.0, -10.0])
+    assert floors.tolist() == pytest.approx([-60.0, -35.0, -70.0])
+    assert active[:, 3].tolist() == [True, False, False]
+    assert not np.any(active[:, 4:])
 
 
 def test_validation_rejects_mismatched_frame_counts(tmp_path: Path) -> None:
