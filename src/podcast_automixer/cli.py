@@ -65,6 +65,14 @@ def _prompt_paths() -> list[Path]:
             console.print(f"[bold red]Error:[/bold red] {exc}")
 
 
+def _confirm_overwrite(progress_display: Progress, count: int) -> bool:
+    progress_display.stop()
+    try:
+        return Confirm.ask(f"{count} output(s) exist. Overwrite all?", default=False)
+    finally:
+        progress_display.start()
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Automix synchronized podcast stems")
     result.add_argument("files", nargs="*", type=_path)
@@ -162,9 +170,7 @@ def main() -> None:
                 ),
                 progress=show_progress,
                 inputs_ready=show_inputs,
-                confirm_overwrite=lambda count: Confirm.ask(
-                    f"{count} output(s) exist. Overwrite all?", default=False
-                ),
+                confirm_overwrite=lambda count: _confirm_overwrite(progress_display, count),
             )
         console.print("[green]Complete.[/green]")
         for output in result.outputs:

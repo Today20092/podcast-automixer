@@ -66,8 +66,8 @@ class AnalysisResult:
 
 
 def inspect_inputs(paths: list[Path]) -> list[AudioInfo]:
-    if len(paths) != 3:
-        raise AutomixError("Exactly three WAV files are required.")
+    if len(paths) < 2:
+        raise AutomixError("At least two WAV files are required.")
     infos: list[AudioInfo] = []
     for path in paths:
         if not path.is_file():
@@ -204,10 +204,10 @@ def analyze(
                 offset += len(audio)
                 remaining -= len(audio)
                 if progress:
-                    progress("Analyzing", channel + 1, channel * total + offset, 3 * total)
+                    progress("Analyzing", channel + 1, channel * total + offset, len(infos) * total)
 
     if np.max(energies) <= -119.0:
-        raise AutomixError("All three inputs are digital silence.")
+        raise AutomixError("All inputs are digital silence.")
 
     active, calibration, floors = _classify_activity(energies, speech, settings.ambiguity_db)
 

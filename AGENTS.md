@@ -11,3 +11,7 @@ Use the five default Matt Pocock triage labels. See `docs/agents/triage-labels.m
 ### Domain docs
 
 This is a single-context repository. See `docs/agents/domain.md`.
+
+### Releases
+
+For version bumps, tags, PyPI publishing, or GitHub Releases, follow `docs/releasing.md`.

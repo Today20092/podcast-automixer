@@ -28,3 +28,6 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local design explorations
+automix-explainer.html

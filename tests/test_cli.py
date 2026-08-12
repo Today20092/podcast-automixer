@@ -1,6 +1,8 @@
 from pathlib import PurePosixPath, PureWindowsPath
+from typing import cast
 
 import pytest
+from rich.progress import Progress
 
 from podcast_automixer import cli
 
@@ -66,3 +68,26 @@ def test_direct_cli_accepts_filename_beginning_with_dash_after_separator() -> No
     parsed = cli.parser().parse_args(["--", "-one.wav", "two.wav", "three.wav"])
 
     assert [path.name for path in parsed.files] == ["-one.wav", "two.wav", "three.wav"]
+
+
+def test_overwrite_confirmation_suspends_progress_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class FakeProgress:
+        def stop(self) -> None:
+            events.append("stop")
+
+        def start(self) -> None:
+            events.append("start")
+
+    def ask(_prompt: str, *, default: bool) -> bool:
+        assert default is False
+        events.append("prompt")
+        return True
+
+    monkeypatch.setattr(cli.Confirm, "ask", ask)
+
+    assert cli._confirm_overwrite(cast(Progress, FakeProgress()), 3) is True
+    assert events == ["stop", "prompt", "start"]
