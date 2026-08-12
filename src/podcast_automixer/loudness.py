@@ -59,9 +59,7 @@ class _EnergyWindows:
         squared_prefix = np.empty(len(samples) + 1, dtype=np.float64)
         squared_prefix[0] = 0.0
         np.cumsum(np.square(samples), out=squared_prefix[1:])
-        energies = (
-            squared_prefix[starts + self.window] - squared_prefix[starts]
-        ) / self.window
+        energies = (squared_prefix[starts + self.window] - squared_prefix[starts]) / self.window
         # Copy only the bounded tail so it does not retain the full chunk's allocation.
         self.remainder = samples[count * self.step :].copy()
         return energies
