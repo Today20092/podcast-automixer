@@ -1,0 +1,21 @@
+flowchart TD
+    CLI["💻 CLI: collect paths and settings"] --> Validate["✅ Validate synchronized mono WAV stems"]
+    Validate --> Frames["🎚️ Read bounded segments and measure 20 ms frames"]
+    Frames --> VAD["🗣️ Silero VAD speech mask on a 16 kHz sidechain"]
+    Frames --> Energy["📊 K-weighted per-track energy"]
+    VAD --> Ownership["🧭 Calibrate levels and classify microphone activity"]
+    Energy --> Ownership
+    Ownership --> Timing["⏱️ Add preroll and hold"]
+    Timing --> Envelope["📉 Chase unity or attenuation with open/close smoothing"]
+    Envelope --> Render["🎧 Interpolate gain per sample and render replacement WAVs"]
+    Render --> Loudness["📏 Measure stems and virtual mono sum"]
+    Loudness --> Reports["📄 Write HTML and JSON reports; optional CSV diagnostics"]
+
+    classDef input fill:#FFE66D,stroke:#7A5C00,stroke-width:2px,color:#000
+    classDef analysis fill:#A8DADC,stroke:#1864AB,stroke-width:2px,color:#000
+    classDef dsp fill:#90EE90,stroke:#2B6E2B,stroke-width:2px,color:#000
+    classDef output fill:#E6E6FA,stroke:#514A9D,stroke-width:2px,color:#000
+    class CLI,Validate input
+    class Frames,VAD,Energy,Ownership analysis
+    class Timing,Envelope,Render dsp
+    class Loudness,Reports output

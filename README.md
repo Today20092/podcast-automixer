@@ -102,6 +102,17 @@ time constants, with sample-level interpolation between analysis frames. Exact-d
 S-curve envelopes are not planned: continuously retargetable Natural/chase smoothing is a
 better fit for changing speech decisions.
 
+## How it works
+
+Podcast Automixer combines Silero voice activity detection with K-weighted, per-frame
+energy comparisons across every microphone. It calibrates stable level differences,
+estimates each track's noise floor, keeps ambiguous or overlapping speech conservative,
+then adds preroll and hold before generating a smooth, continuously retargetable gain
+envelope. The envelope is interpolated to sample level during rendering.
+
+See [Architecture and signal flow](docs/architecture.md) for the full processing workflow,
+activity-classification rules, module responsibilities, rendering lifecycle, and diagram.
+
 ## Recommended Editing Workflow
 
 Opening and closing controls are time constants, not exact fade durations. Each value
@@ -266,11 +277,14 @@ Run `podcast-automix --help` for the complete command-line reference.
 - [x] JSON, HTML, and optional CSV diagnostics.
 - [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
 - [ ] Make advanced settings easier to understand, adjust, save, and reuse.
+- [ ] Expose additional advanced parameters with safe ranges, explanations, and sensible defaults.
 - [ ] Add reusable presets for different rooms, microphones, and podcast styles.
 - [x] Support a flexible number of microphone tracks.
 - [x] Publish a cross-platform command-line installation through PyPI and `uv`.
 - [ ] Launch a GitHub Pages site that explains the project, signal flow, and editing workflow.
-- [ ] Ship a standalone desktop experience that does not require a Python tool manager.
+- [ ] Design a cross-platform GUI that can run as a standalone desktop app or browser-based tool, without requiring CLI knowledge.
+- [ ] Add an interactive full-waveform preview with the gain-following envelope and gain reduction overlaid, updating as parameters change before a render.
+- [ ] Ship a standalone desktop experience that does not require Python or a Python tool manager.
 - [ ] Explore editor, DAW, or plugin integration without requiring it for basic use.
 - [ ] Add more listening tests and real-world podcast fixtures.
 
@@ -286,6 +300,20 @@ uv build
 ```
 
 Release maintainers should follow [the release guide](docs/releasing.md).
+
+<details>
+<summary><strong>Architecture at a glance</strong></summary>
+
+The CLI validates synchronized mono WAV stems and passes a run request to the reusable
+orchestration layer. The analyzer combines a Silero VAD speech mask with K-weighted relative
+energy and noise-floor evidence, classifies active microphones, expands activity with
+preroll and hold, and creates smoothed gain envelopes. The renderer applies interpolated
+sample-level gain without changing timing, then loudness and report modules create the HTML,
+JSON, and optional CSV artifacts.
+
+[Read the full architecture and signal-flow guide.](docs/architecture.md)
+
+</details>
 
 ## License
 
