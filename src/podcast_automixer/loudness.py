@@ -7,7 +7,8 @@ from typing import Any
 import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
-from scipy.signal import lfilter, resample_poly
+import soxr
+from scipy.signal import lfilter
 
 
 class KWeightFilter:
@@ -52,16 +53,28 @@ class _StreamingMeter:
         self.short_term_points: list[dict[str, float]] = []
         self.short_term_sample_offset = 0
         self.sample_count = 0
-        self.peak_audio: list[np.ndarray] = []
+        self.peak_resampler = soxr.ResampleStream(
+            samplerate,
+            samplerate * 4,
+            num_channels=1,
+            dtype="float32",
+            quality="VHQ",
+        )
+        self.estimated_peak = 0.0
+        self.peak_finalized = False
 
     def add(self, audio: np.ndarray) -> None:
         raw = audio.astype(np.float64, copy=False)
         if not len(raw):
             return
-        # Defer oversampling until result() so the FIR sees one continuous signal rather
-        # than restarting at each input chunk. This is intentionally labelled estimated:
-        # scipy's generic resampler is not a verified BS.1770 true-peak filter.
-        self.peak_audio.append(raw.copy())
+        if self.peak_finalized:
+            raise RuntimeError("Cannot add audio after the loudness result is finalized.")
+        oversampled = self.peak_resampler.resample_chunk(audio.astype(np.float32, copy=False))
+        if len(oversampled):
+            self.estimated_peak = max(
+                self.estimated_peak,
+                float(np.max(np.abs(oversampled))),
+            )
         weighted = raw
         updated = []
         for b, a, state in self.filters:
@@ -143,11 +156,16 @@ class _StreamingMeter:
         else:
             lra = 0.0
         finite_momentary = loudness[np.isfinite(loudness)]
-        if self.peak_audio:
-            oversampled = resample_poly(np.concatenate(self.peak_audio), 4, 1)
-            estimated_peak = float(np.max(np.abs(oversampled)))
-        else:
-            estimated_peak = 0.0
+        if not self.peak_finalized:
+            oversampled = self.peak_resampler.resample_chunk(
+                np.empty(0, dtype=np.float32), last=True
+            )
+            if len(oversampled):
+                self.estimated_peak = max(
+                    self.estimated_peak,
+                    float(np.max(np.abs(oversampled))),
+                )
+            self.peak_finalized = True
 
         def finite(value: float) -> float | None:
             return value if math.isfinite(value) else None
@@ -162,7 +180,7 @@ class _StreamingMeter:
             ),
             "loudness_range_lu": lra,
             "maximum_estimated_true_peak_dbtp": (
-                20.0 * math.log10(estimated_peak) if estimated_peak > 0 else None
+                20.0 * math.log10(self.estimated_peak) if self.estimated_peak > 0 else None
             ),
             "short_term_timeline": [
                 {**point, "lufs": finite(point["lufs"])} for point in self.short_term_points

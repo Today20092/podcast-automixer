@@ -96,6 +96,32 @@ def test_analysis_is_segment_size_independent_across_speech_boundaries(
     assert one_second.samples_per_frame == 320
 
 
+@pytest.mark.parametrize("track_count", [2, 4])
+def test_analysis_supports_two_or_more_tracks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, track_count: int
+) -> None:
+    samplerate = 16000
+    samples = np.arange(samplerate, dtype=np.float32)
+    audio = 0.1 * np.sin(2 * np.pi * 440 * samples / samplerate)
+    paths = []
+    for index in range(track_count):
+        path = tmp_path / f"stem-{index}.wav"
+        sf.write(path, audio, samplerate, subtype="FLOAT")
+        paths.append(path)
+
+    def timestamps(sidechain, model, **kwargs):
+        del model, kwargs
+        return [{"start": 0, "end": len(sidechain)}]
+
+    monkeypatch.setattr("podcast_automixer.core._load_vad", lambda: (object(), timestamps))
+    result = analyze(inspect_inputs(paths), Settings(segment_seconds=1))
+
+    assert result.active.shape[0] == track_count
+    assert result.gains.shape[0] == track_count
+    assert result.calibration_db.shape == (track_count,)
+    assert result.noise_floor_db.shape == (track_count,)
+
+
 def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: Path) -> None:
     samplerate = 48000
     seconds = np.arange(samplerate * 4, dtype=np.float64) / samplerate
@@ -131,6 +157,16 @@ def test_estimated_peak_is_continuous_across_chunk_boundaries() -> None:
 
     key = "maximum_estimated_true_peak_dbtp"
     assert chunked.result()[key] == pytest.approx(whole.result()[key], abs=1e-12)
+
+
+def test_estimated_peak_does_not_retain_the_full_recording() -> None:
+    meter = _StreamingMeter(48000)
+    chunk = np.zeros(48000, dtype=np.float32)
+
+    for _ in range(20):
+        meter.add(chunk)
+
+    assert not hasattr(meter, "peak_audio")
 
 
 def test_silent_estimated_peak_serializes_as_null() -> None:
@@ -378,13 +414,38 @@ def test_vad_adapter_maps_partial_final_frame() -> None:
 
 def test_diagnostics_csv_contains_activity_and_gain(tmp_path: Path) -> None:
     path = tmp_path / "diagnostics.csv"
-    active = np.array([[True], [False], [True]])
-    gains = np.array([[1.0], [0.5], [1.0]], dtype=np.float32)
+    active = np.array([[True], [False], [True], [False]])
+    gains = np.array([[1.0], [0.5], [1.0], [0.25]], dtype=np.float32)
     report = Report([], Settings(), gains, active, {})
+    rows = report.diagnostics_rows()
+    assert iter(rows) is rows
+
     write_diagnostics(path, report)
     text = path.read_text(encoding="utf-8")
-    assert "a02_gain_db" in text
-    assert "0.000,1,0,1,0.000,-6.021,0.000" in text
+    assert "a04_gain_db" in text
+    assert "0.000,1,0,1,0,0.000,-6.021,0.000,-12.041" in text
+
+
+@pytest.mark.parametrize("track_count", [2, 4])
+def test_report_payloads_support_two_or_more_tracks(tmp_path: Path, track_count: int) -> None:
+    source_paths = [tmp_path / f"A{index + 1:02}.wav" for index in range(track_count)]
+    for path in source_paths:
+        sf.write(path, np.zeros(10, dtype=np.float32), 48000, subtype="FLOAT")
+    active = np.zeros((track_count, 2), dtype=bool)
+    gains = np.ones((track_count, 2), dtype=np.float32)
+    analysis = {
+        "calibration_db": [0.0] * track_count,
+        "noise_floor_db": [-60.0] * track_count,
+        "active_percent": [0.0] * track_count,
+    }
+
+    payload = Report(
+        inspect_inputs(source_paths), Settings(), gains, active, analysis
+    ).html_payload()
+
+    assert len(payload["tracks"]) == track_count
+    assert len(payload["track_summary"]) == track_count
+    assert len(payload["timeline"][0]["gain_db"]) == track_count
 
 
 def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -> None:

@@ -29,6 +29,7 @@ dependencies = [
   "scipy>=1.14",
   "silero-vad>=6.0",
   "soundfile>=0.13",
+  "soxr>=1.0",
 ]
 
 [project.urls]
