@@ -407,11 +407,10 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
     text = destination.read_text(encoding="utf-8")
     assert "<!doctype html>" in text
     assert "Automix health" in text
-    assert "Attenuation overview" in text
-    assert "Gain reduction over time" in text
-    assert "Applied gain in decibels over episode time for every microphone track" in text
-    assert "Speaker ownership by section" in text
-    assert "Moments to review" in text
+    assert "Review event timeline" in text
+    assert "Automix activity timeline" in text
+    assert "Gain reduction by microphone" in text
+    assert "Conversation balance" in text
     assert "Opening time constant" in text
     assert "Closing time constant" in text
     assert "about 63%" in text
