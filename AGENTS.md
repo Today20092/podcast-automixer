@@ -1,12 +1,12 @@
 ## Agent skills
 
-### Local tickets
+### Issue tracker
 
-For creating, reading, triaging, claiming, or closing work items, use the Markdown tickets under `tickets/`. See `docs/agents/issue-tracker.md`.
+Use GitHub Issues for publishing, fetching, triaging, claiming, blocking, or resolving work. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Use the five default Matt Pocock triage labels. See `docs/agents/triage-labels.md`.
+Use the five canonical Matt Pocock triage roles and the repository label mapping. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

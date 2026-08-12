@@ -276,19 +276,19 @@ Run `podcast-automix --help` for the complete command-line reference.
 - [x] Preview rendering and advanced command-line settings.
 - [x] JSON, HTML, and optional CSV diagnostics.
 - [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
-- [ ] Make advanced settings easier to understand, adjust, save, and reuse.
-- [ ] Expose additional advanced parameters with safe ranges, explanations, and sensible defaults.
-- [ ] Add reusable presets for different rooms, microphones, and podcast styles.
+- [ ] [Make advanced settings easier to understand, safely adjust, save, and reuse](https://github.com/Today20092/podcast-automixer/issues/20), including additional parameters and presets.
 - [x] Support a flexible number of microphone tracks.
 - [x] Publish a cross-platform command-line installation through PyPI and `uv`.
-- [ ] Launch a GitHub Pages site that explains the project, signal flow, and editing workflow.
-- [ ] Design a cross-platform GUI that can run as a standalone desktop app or browser-based tool, without requiring CLI knowledge.
-- [ ] Add an interactive full-waveform preview with the gain-following envelope and gain reduction overlaid, updating as parameters change before a render.
-- [ ] Ship a standalone desktop experience that does not require Python or a Python tool manager.
-- [ ] Explore editor, DAW, or plugin integration without requiring it for basic use.
-- [ ] Add more listening tests and real-world podcast fixtures.
+- [ ] [Launch a GitHub Pages site](https://github.com/Today20092/podcast-automixer/issues/21) that explains the project, signal flow, and editing workflow.
+- [ ] [Design a cross-platform GUI](https://github.com/Today20092/podcast-automixer/issues/22) that can run as a standalone desktop app or browser-based tool without requiring CLI knowledge.
+  - [ ] [Add an interactive full-waveform parameter preview](https://github.com/Today20092/podcast-automixer/issues/23).
+  - [ ] [Ship a standalone desktop distribution without Python prerequisites](https://github.com/Today20092/podcast-automixer/issues/24).
+- [ ] [Explore editor, DAW, or plugin integrations](https://github.com/Today20092/podcast-automixer/issues/25) without requiring them for basic use.
+- [ ] [Expand listening tests and real-world podcast fixtures](https://github.com/Today20092/podcast-automixer/issues/26).
 
 ## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before claiming an issue or opening a pull request.
 
 ```bash
 uv sync

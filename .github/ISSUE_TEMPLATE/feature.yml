@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose an improvement to Podcast Automixer
+title: "[Feature]: "
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Describe the editing problem first so the proposed solution can be evaluated in context.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What podcast-production task is difficult or impossible today, and who encounters it?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Desired behavior
+      description: Explain what Podcast Automixer should do and what output you expect.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds or other approaches you considered.
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Suggested acceptance criteria
+      description: List observable conditions that would make the request complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sanitized examples, mockups, or links that clarify the request.

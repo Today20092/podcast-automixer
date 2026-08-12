@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible problem with Podcast Automixer
+title: "[Bug]: "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Podcast Automixer. Search existing issues before filing a new report.
+  - type: input
+    id: version
+    attributes:
+      label: Podcast Automixer version
+      description: Run `podcast-automix --version` or provide the installed package version.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or workflow
+      description: Show the exact command or interactive steps that produced the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input details
+      description: Describe the number of stems, duration, sample rate, bit depth, channel layout, and relevant metadata. Do not attach private recordings without permission.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable example you can.
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and reports
+      description: Paste relevant terminal output or sanitized report excerpts. Remove personal paths and private recording information.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed private recording content, personal paths, and other sensitive information from this report.
+          required: true
