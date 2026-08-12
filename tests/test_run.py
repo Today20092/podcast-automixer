@@ -21,13 +21,21 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
     active = np.ones((3, 10), dtype=bool)
     monkeypatch.setattr(run, "analyze", lambda *_args, **_kwargs: (gains, active, {}))
 
-    def render(_infos, _gains, _settings, _start, _count, preview, _overwrite, **_kwargs):
-        outputs = [run.output_path(info.path, preview) for info in infos]
-        for output in outputs:
-            output.touch()
-        return outputs
+    class StubArtifacts:
+        def __init__(self, preview: bool) -> None:
+            suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
+            self.paths = [info.path.with_name(f"{info.path.stem}{suffix}") for info in infos]
 
-    monkeypatch.setattr(run, "render", render)
+        def render(self, *_args, **_kwargs):
+            for output in self.paths:
+                output.touch()
+            return self.paths
+
+    monkeypatch.setattr(
+        run.RenderedAudioArtifacts,
+        "prepare",
+        lambda _infos, *, preview, **_kwargs: StubArtifacts(preview),
+    )
     monkeypatch.setattr(run, "analyze_rendered_loudness", lambda _outputs: {})
     monkeypatch.setattr(run, "write_report", lambda destination, *_args: destination.touch())
     monkeypatch.setattr(run, "write_html_report", lambda destination, *_args: destination.touch())
@@ -59,7 +67,7 @@ def test_run_refuses_overwrite_before_analysis(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     infos = _infos(tmp_path)
-    collision = run.output_path(infos[0].path, False)
+    collision = infos[0].path.with_name(f"{infos[0].path.stem}_auto-mixed.wav")
     collision.touch()
     monkeypatch.setattr(run, "inspect_inputs", lambda _paths: infos)
     monkeypatch.setattr(
