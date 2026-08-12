@@ -1,5 +1,7 @@
 import json
 import math
+import time
+import tracemalloc
 from pathlib import Path
 
 import numpy as np
@@ -138,28 +140,65 @@ def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: P
     program = report["virtual_mono_program"]
     assert report["standard"] == "ITU-R BS.1770 / EBU R 128"
     assert stem["integrated_lufs"] == pytest.approx(-23.05, abs=0.25)
+    assert stem["maximum_momentary_lufs"] == pytest.approx(-23.05, abs=0.25)
+    assert stem["maximum_short_term_lufs"] == pytest.approx(-23.05, abs=0.25)
+    assert stem["loudness_range_lu"] == pytest.approx(2.34, abs=0.1)
     assert program["integrated_lufs"] - stem["integrated_lufs"] == pytest.approx(9.54, abs=0.1)
     assert stem["maximum_estimated_true_peak_dbtp"] == pytest.approx(-20.0, abs=0.1)
     assert len(stem["short_term_timeline"]) == 2
+    assert stem["short_term_timeline"][0] == {
+        "seconds": 0.0,
+        "lufs": pytest.approx(-23.05, abs=0.25),
+    }
 
 
-def test_estimated_peak_is_continuous_across_chunk_boundaries() -> None:
+def test_loudness_report_exposes_progress_until_measurement_finishes(tmp_path: Path) -> None:
+    samplerate = 8000
+    tone = np.zeros(samplerate * 21, dtype=np.float32)
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"stem-{index}.wav"
+        sf.write(path, tone, samplerate, subtype="FLOAT")
+        paths.append(path)
+    events: list[tuple[str, int, int, int]] = []
+
+    analyze_rendered_loudness(paths, progress=lambda *event: events.append(event))
+
+    assert events
+    assert {event[0] for event in events} == {"Measuring loudness"}
+    assert events[-1][2] == events[-1][3]
+    assert events[-2][2] == events[-1][3] - 1
+    assert [event[2] for event in events] == sorted(event[2] for event in events)
+
+
+def test_loudness_measurement_is_continuous_across_chunk_boundaries() -> None:
     samplerate = 48000
-    samples = np.arange(400, dtype=np.float64)
+    samples = np.arange(samplerate * 4, dtype=np.float64)
     # A phase-offset high-frequency tone has intersample peaks and puts one at the split.
     audio = 0.5 * np.sin(2 * np.pi * 17000 * samples / samplerate + 0.37)
 
     whole = _StreamingMeter(samplerate)
     whole.add(audio)
     chunked = _StreamingMeter(samplerate)
-    chunked.add(audio[:173])
-    chunked.add(audio[173:])
+    for chunk in np.array_split(audio, [173, 48001, 100003]):
+        chunked.add(chunk)
 
-    key = "maximum_estimated_true_peak_dbtp"
-    assert chunked.result()[key] == pytest.approx(whole.result()[key], abs=1e-12)
+    whole_result = whole.result()
+    chunked_result = chunked.result()
+    for key in (
+        "integrated_lufs",
+        "maximum_momentary_lufs",
+        "maximum_short_term_lufs",
+        "loudness_range_lu",
+        "maximum_estimated_true_peak_dbtp",
+    ):
+        assert chunked_result[key] == pytest.approx(whole_result[key], abs=1e-10)
+    assert chunked_result["short_term_timeline"] == pytest.approx(
+        whole_result["short_term_timeline"]
+    )
 
 
-def test_estimated_peak_does_not_retain_the_full_recording() -> None:
+def test_loudness_meter_retains_only_bounded_audio_windows() -> None:
     meter = _StreamingMeter(48000)
     chunk = np.zeros(48000, dtype=np.float32)
 
@@ -167,6 +206,30 @@ def test_estimated_peak_does_not_retain_the_full_recording() -> None:
         meter.add(chunk)
 
     assert not hasattr(meter, "peak_audio")
+    assert len(meter.momentary.remainder) < round(0.4 * meter.samplerate)
+    assert len(meter.short_term.remainder) < round(3.0 * meter.samplerate)
+
+
+def test_long_loudness_measurement_is_fast_and_retains_bounded_audio() -> None:
+    samplerate = 8000
+    ten_seconds = np.zeros(samplerate * 10, dtype=np.float32)
+
+    peaks = []
+    started = time.perf_counter()
+    for chunk_count in (6, 60):
+        meter = _StreamingMeter(samplerate)
+        tracemalloc.start()
+        for _ in range(chunk_count):
+            meter.add(ten_seconds)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        peaks.append(peak)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 5.0
+    assert peaks[1] - peaks[0] < 1024 * 1024
+    assert len(meter.momentary.remainder) < round(0.4 * samplerate)
+    assert len(meter.short_term.remainder) < round(3.0 * samplerate)
 
 
 def test_silent_estimated_peak_serializes_as_null() -> None:

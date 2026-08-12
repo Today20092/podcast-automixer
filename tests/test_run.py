@@ -37,7 +37,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
         "prepare",
         lambda _infos, *, preview, **_kwargs: StubArtifacts(preview),
     )
-    monkeypatch.setattr(run, "analyze_rendered_loudness", lambda _outputs: {})
+    monkeypatch.setattr(run, "analyze_rendered_loudness", lambda _outputs, **_kwargs: {})
     monkeypatch.setattr(run, "write_json_report", lambda destination, *_args: destination.touch())
     monkeypatch.setattr(run, "write_html_report", lambda destination, *_args: destination.touch())
     return infos
@@ -95,6 +95,23 @@ def test_run_removes_new_artifacts_after_failure(
     monkeypatch.setattr(run, "write_json_report", fail_report)
 
     with pytest.raises(OSError, match="report failed"):
+        run.run_automix(run.RunRequest([info.path for info in infos], Settings()))
+
+    assert not list(tmp_path.glob("*auto-mixed*"))
+    assert not list(tmp_path.glob("podcast-automix-report.*"))
+
+
+def test_run_removes_new_artifacts_when_loudness_measurement_is_cancelled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    infos = _stub_pipeline(monkeypatch, tmp_path)
+
+    def cancel_loudness(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(run, "analyze_rendered_loudness", cancel_loudness)
+
+    with pytest.raises(KeyboardInterrupt):
         run.run_automix(run.RunRequest([info.path for info in infos], Settings()))
 
     assert not list(tmp_path.glob("*auto-mixed*"))

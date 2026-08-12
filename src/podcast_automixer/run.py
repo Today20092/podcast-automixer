@@ -89,7 +89,7 @@ def run_automix(
         )
         analysis_report = {
             **analysis.report_values,
-            "loudness": analyze_rendered_loudness(rendered),
+            "loudness": analyze_rendered_loudness(rendered, progress=progress),
         }
         report_model = Report(
             infos,
@@ -102,7 +102,7 @@ def run_automix(
         write_html_report(html_report, report_model)
         if diagnostics:
             write_diagnostics(diagnostics, report_model)
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         for artifact in absent_before_run:
             artifact.unlink(missing_ok=True)
         raise
