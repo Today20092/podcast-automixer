@@ -69,9 +69,7 @@ class _StreamingMeter:
             return
         if self.peak_finalized:
             raise RuntimeError("Cannot add audio after the loudness result is finalized.")
-        oversampled = self.peak_resampler.resample_chunk(
-            audio.astype(np.float32, copy=False)
-        )
+        oversampled = self.peak_resampler.resample_chunk(audio.astype(np.float32, copy=False))
         if len(oversampled):
             self.estimated_peak = max(
                 self.estimated_peak,
