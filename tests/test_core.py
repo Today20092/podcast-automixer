@@ -84,12 +84,15 @@ def test_analysis_is_segment_size_independent_across_speech_boundaries(
 
     monkeypatch.setattr("podcast_automixer.core._load_vad", lambda: (object(), timestamps))
     infos = inspect_inputs(paths)
-    _, one_second, _ = analyze(infos, Settings(segment_seconds=1))
-    _, two_seconds, _ = analyze(infos, Settings(segment_seconds=2))
+    one_second = analyze(infos, Settings(segment_seconds=1))
+    two_seconds = analyze(infos, Settings(segment_seconds=2))
 
-    assert np.array_equal(one_second, two_seconds)
-    assert np.all(one_second[0, 45:55])
-    assert np.all(one_second[0, 95:105])
+    assert np.array_equal(one_second.active, two_seconds.active)
+    assert np.all(one_second.active[0, 45:55])
+    assert np.all(one_second.active[0, 95:105])
+    assert one_second.start_sample == 0
+    assert one_second.sample_count == samplerate * 3
+    assert one_second.samples_per_frame == 320
 
 
 def test_loudness_report_measures_stems_virtual_program_and_timeline(tmp_path: Path) -> None:
