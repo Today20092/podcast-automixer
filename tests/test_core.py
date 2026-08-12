@@ -303,9 +303,19 @@ def test_validation_rejects_mismatched_frame_counts(tmp_path: Path) -> None:
         inspect_inputs(paths)
 
 
-def test_validation_requires_three_files(tmp_path: Path) -> None:
-    with pytest.raises(AutomixError, match="Exactly three"):
+def test_validation_requires_at_least_two_files(tmp_path: Path) -> None:
+    with pytest.raises(AutomixError, match="At least two"):
         inspect_inputs([tmp_path / "one.wav"])
+
+
+def test_validation_accepts_more_than_three_files(tmp_path: Path) -> None:
+    paths = []
+    for index in range(4):
+        path = tmp_path / f"A0{index + 1}.wav"
+        sf.write(path, np.zeros(100, dtype=np.float32), 48000, subtype="FLOAT")
+        paths.append(path)
+
+    assert len(inspect_inputs(paths)) == 4
 
 
 def test_vad_adapter_passes_audio_before_model() -> None:

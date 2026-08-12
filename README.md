@@ -24,9 +24,9 @@ combine the microphones into a finished stereo mix.
 
 ## Quick start
 
-Podcast Automixer is currently a command-line app. You need three synchronized mono WAV
-files—one isolated microphone recording per speaker—with matching sample rate, length, and
-bit depth.
+Podcast Automixer is currently a command-line app. You need at least two synchronized mono
+WAV files—one isolated microphone recording per speaker—with matching sample rate, length,
+and bit depth.
 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/), then open a new
    terminal window.
@@ -42,8 +42,9 @@ bit depth.
    podcast-automix
    ```
 
-4. Paste the three WAV paths when prompted (Windows terminals also support drag-and-drop).
-5. Listen to the three new `_auto-mixed.wav` files written beside the originals, and open
+4. Paste each WAV path when prompted, then press Enter when done (Windows terminals also
+   support drag-and-drop).
+5. Listen to the new `_auto-mixed.wav` files written beside the originals, and open
    `podcast-automix-report.html` to review what the automixer changed.
 
 The original recordings are never modified. For a 30-second test before processing the
@@ -68,7 +69,7 @@ untouched, and the replacement files can be inspected before they enter the edit
 
 ## Features
 
-- Automixes three synchronized, single-speaker WAV microphone stems.
+- Automixes two or more synchronized, single-speaker WAV microphone stems.
 - Keeps active microphones at unity gain.
 - Smoothly attenuates microphones that are clearly inactive.
 - Preserves input duration, synchronization, sample rate, and channel layout.
@@ -189,7 +190,8 @@ Command Prompt terminals; terminal drag-and-drop is not advertised on macOS or L
 shells may insert escape characters. On those systems, paste or type the unescaped path at
 each prompt instead.
 
-For scripting, pass three positional arguments and use the quoting rules of the current shell.
+For scripting, pass two or more positional arguments and use the quoting rules of the current
+shell.
 These examples all include paths containing spaces:
 
 **Windows (PowerShell)**
@@ -235,13 +237,13 @@ Run `podcast-automix --help` for the complete command-line reference.
 ## Roadmap
 
 - [x] Conservative voice-activity-based automixing.
-- [x] Timing-identical replacement WAV files for three synchronized microphones.
+- [x] Timing-identical replacement WAV files for two or more synchronized microphones.
 - [x] Preview rendering and advanced command-line settings.
 - [x] JSON, HTML, and optional CSV diagnostics.
 - [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
 - [ ] Make advanced settings easier to understand, adjust, save, and reuse.
 - [ ] Add reusable presets for different rooms, microphones, and podcast styles.
-- [ ] Support a flexible number of microphone tracks.
+- [x] Support a flexible number of microphone tracks.
 - [x] Publish a cross-platform command-line installation through PyPI and `uv`.
 - [ ] Ship a standalone desktop experience that does not require a Python tool manager.
 - [ ] Explore editor, DAW, or plugin integration without requiring it for basic use.
