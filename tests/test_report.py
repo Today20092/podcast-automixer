@@ -42,7 +42,7 @@ def test_report_owns_shared_gain_calculation() -> None:
     report = Report([], Settings(), gains, np.zeros((3, 1), dtype=bool), {})
 
     assert report.gain_db[:, 0].tolist() == [0.0, -6.020600318908691, -180.0]
-    assert report.diagnostics_rows()[0][-3:] == ["0.000", "-6.021", "-180.000"]
+    assert next(report.diagnostics_rows())[-3:] == ["0.000", "-6.021", "-180.000"]
     assert report.json_payload()["gain_reduction_db"]["minimum"] == [
         0.0,
         -6.020600318908691,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,16 @@ class Report:
         }
 
     def html_payload(self) -> dict[str, Any]:
-        colors = ("#3b82f6", "#f59e0b", "#10b981")
+        colors = (
+            "#3b82f6",
+            "#f59e0b",
+            "#10b981",
+            "#ef4444",
+            "#8b5cf6",
+            "#06b6d4",
+            "#ec4899",
+            "#84cc16",
+        )
         return {
             "attenuationDb": self.settings.attenuation_db,
             "openingTimeConstantMs": self.settings.open_ms,
@@ -63,25 +73,26 @@ class Report:
                     "calibration": float(self.analysis["calibration_db"][index]),
                     "noiseFloor": float(self.analysis["noise_floor_db"][index]),
                     "minimumGain": float(self.gain_db[index].min()),
-                    "color": colors[index],
+                    "color": colors[index % len(colors)],
                 }
                 for index, info in enumerate(self.infos)
             ],
         }
 
-    def diagnostics_rows(self) -> list[list[str | int]]:
-        return [
-            [
+    def diagnostics_rows(self) -> Iterator[list[str | int]]:
+        gain_db = self.gain_db
+        track_count = self.active.shape[0]
+        for index in range(self.active.shape[1]):
+            yield [
                 f"{index * self.settings.frame_ms / 1000:.3f}",
-                *(int(self.active[channel, index]) for channel in range(3)),
-                *(f"{self.gain_db[channel, index]:.3f}" for channel in range(3)),
+                *(int(self.active[channel, index]) for channel in range(track_count)),
+                *(f"{gain_db[channel, index]:.3f}" for channel in range(track_count)),
             ]
-            for index in range(self.active.shape[1])
-        ]
 
 
 def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int) -> dict[str, Any]:
     """Summarize frame decisions into episode-scale, display-ready diagnostics."""
+    track_count = active.shape[0]
     frame_count = active.shape[1]
     frame_seconds = frame_ms / 1000
     duration_seconds = frame_count * frame_seconds
@@ -112,11 +123,12 @@ def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int
                 "start_seconds": round(start * frame_seconds, 3),
                 "end_seconds": round(stop * frame_seconds, 3),
                 "gain_db": [
-                    round(float(gain_db[channel, start:stop].mean()), 3) for channel in range(3)
+                    round(float(gain_db[channel, start:stop].mean()), 3)
+                    for channel in range(track_count)
                 ],
                 "attenuated_percent": [
                     round(float(np.mean(gain_db[channel, start:stop] < -0.5) * 100), 1)
-                    for channel in range(3)
+                    for channel in range(track_count)
                 ],
                 "overlap_percent": round(float(np.mean(multiple_owner[start:stop]) * 100), 1),
                 "unowned_percent": round(float(np.mean(unowned[start:stop]) * 100), 1),
@@ -135,7 +147,7 @@ def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int
                 "end_seconds": round(stop * frame_seconds, 3),
                 "track_percent": [
                     round(float(np.sum(owners[start:stop] == channel) * 100 / size), 1)
-                    for channel in range(3)
+                    for channel in range(track_count)
                 ],
                 "overlap_percent": round(float(np.mean(multiple_owner[start:stop]) * 100), 1),
                 "unowned_percent": round(float(np.mean(unowned[start:stop]) * 100), 1),
@@ -149,7 +161,7 @@ def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int
             "mean_gain_db": round(float(gain_db[channel].mean()), 2),
             "maximum_reduction_db": round(float(gain_db[channel].min()), 2),
         }
-        for channel in range(3)
+        for channel in range(track_count)
     ]
 
     def runs(mask: np.ndarray, kind: str) -> list[dict[str, Any]]:
@@ -169,7 +181,9 @@ def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int
                     "end_seconds": round(int(stop) * frame_seconds, 3),
                     "duration_seconds": round(duration, 3),
                     "track_indexes": [
-                        channel for channel in range(3) if bool(np.any(active[channel, start:stop]))
+                        channel
+                        for channel in range(track_count)
+                        if bool(np.any(active[channel, start:stop]))
                     ],
                 }
             )
@@ -202,15 +216,12 @@ def write_json_report(destination: Path, report: Report) -> None:
 def write_diagnostics(destination: Path, report: Report) -> None:
     with destination.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
+        track_count = report.active.shape[0]
         writer.writerow(
             [
                 "time_seconds",
-                "a01_active",
-                "a02_active",
-                "a03_active",
-                "a01_gain_db",
-                "a02_gain_db",
-                "a03_gain_db",
+                *(f"a{channel + 1:02}_active" for channel in range(track_count)),
+                *(f"a{channel + 1:02}_gain_db" for channel in range(track_count)),
             ]
         )
         writer.writerows(report.diagnostics_rows())

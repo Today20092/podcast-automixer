@@ -154,8 +154,9 @@ def analyze(
     total = frame_count if frame_count is not None else infos[0].frames - start_frame
     samples_per_frame = round(sr * settings.frame_ms / 1000)
     analysis_frames = math.ceil(total / samples_per_frame)
-    energies = np.full((3, analysis_frames), -120.0, dtype=np.float32)
-    speech = np.zeros((3, analysis_frames), dtype=bool)
+    track_count = len(infos)
+    energies = np.full((track_count, analysis_frames), -120.0, dtype=np.float32)
+    speech = np.zeros((track_count, analysis_frames), dtype=bool)
     model, timestamp_fn = _load_vad()
     segment_samples = settings.segment_seconds * sr
     # Silero makes utterance-level decisions, so give each bounded segment context
@@ -229,8 +230,8 @@ def _classify_activity(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Classify ownership using calibrated levels and per-stem energetic evidence."""
     # Calibrate away stable microphone/speaker level differences without erasing local ownership.
-    calibration = np.zeros(3, dtype=np.float32)
-    for channel in range(3):
+    calibration = np.zeros(energies.shape[0], dtype=np.float32)
+    for channel in range(energies.shape[0]):
         candidates = energies[channel, speech[channel]]
         if len(candidates):
             calibration[channel] = np.percentile(candidates, 75)
@@ -266,7 +267,7 @@ def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:
     result = np.empty_like(targets, dtype=np.float32)
     open_alpha = 1.0 - math.exp(-frame_ms / settings.open_ms)
     close_alpha = 1.0 - math.exp(-frame_ms / settings.close_ms)
-    for channel in range(3):
+    for channel in range(active.shape[0]):
         value = float(targets[channel, 0])
         for index, target in enumerate(targets[channel]):
             alpha = open_alpha if target > value else close_alpha
