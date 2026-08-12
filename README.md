@@ -125,7 +125,7 @@ uv tool install podcast-automixer
 ```
 
 To upgrade it later, run `uv tool upgrade podcast-automixer`. To try it without permanently
-installing it, run `uvx podcast-automixer`.
+installing it, run `uvx --from podcast-automixer podcast-automix`.
 
 ## Run
 

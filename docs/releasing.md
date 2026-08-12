@@ -38,4 +38,5 @@ uses PyPI trusted publishing, so the repository does not store a PyPI API token.
    ```
 
 The workflow rejects a tag that does not match the version in `pyproject.toml`. After the
-workflow succeeds, verify the release on PyPI and test `uvx podcast-automixer --help`.
+workflow succeeds, verify the release on PyPI and test
+`uvx --from podcast-automixer podcast-automix --help`.
