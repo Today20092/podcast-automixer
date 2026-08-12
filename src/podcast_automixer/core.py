@@ -46,6 +46,29 @@ class AudioInfo:
     format: str
 
 
+@dataclass(frozen=True)
+class AnalysisResult:
+    """Complete ownership decision and its frame/sample coordinate system."""
+
+    gains: np.ndarray
+    active: np.ndarray
+    calibration_db: np.ndarray
+    noise_floor_db: np.ndarray
+    frame_ms: int
+    start_sample: int
+    sample_count: int
+    samples_per_frame: int
+
+    @property
+    def report_values(self) -> dict[str, Any]:
+        """Return the stable, JSON-ready analysis values used by reports."""
+        return {
+            "calibration_db": self.calibration_db.tolist(),
+            "noise_floor_db": self.noise_floor_db.tolist(),
+            "active_percent": (100.0 * np.mean(self.active, axis=1)).tolist(),
+        }
+
+
 def inspect_inputs(paths: list[Path]) -> list[AudioInfo]:
     if len(paths) != 3:
         raise AutomixError("Exactly three WAV files are required.")
@@ -130,7 +153,7 @@ def analyze(
     start_frame: int = 0,
     frame_count: int | None = None,
     progress: ProgressCallback | None = None,
-) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+) -> AnalysisResult:
     sr = infos[0].samplerate
     total = frame_count if frame_count is not None else infos[0].frames - start_frame
     samples_per_frame = round(sr * settings.frame_ms / 1000)
@@ -193,12 +216,16 @@ def analyze(
     active, calibration, floors = _classify_activity(energies, speech, settings.ambiguity_db)
 
     gains = make_gain_envelopes(active, settings)
-    report = {
-        "calibration_db": calibration.tolist(),
-        "noise_floor_db": floors.tolist(),
-        "active_percent": (100.0 * np.mean(active, axis=1)).tolist(),
-    }
-    return gains, active, report
+    return AnalysisResult(
+        gains=gains,
+        active=active,
+        calibration_db=calibration,
+        noise_floor_db=floors,
+        frame_ms=settings.frame_ms,
+        start_sample=start_frame,
+        sample_count=total,
+        samples_per_frame=samples_per_frame,
+    )
 
 
 def _classify_activity(

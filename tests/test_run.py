@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from podcast_automixer import run
-from podcast_automixer.core import AudioInfo, AutomixError, Settings
+from podcast_automixer.core import AnalysisResult, AudioInfo, AutomixError, Settings
 
 
 def _infos(tmp_path: Path) -> list[AudioInfo]:
@@ -19,7 +19,8 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
     monkeypatch.setattr(run, "inspect_inputs", lambda _paths: infos)
     gains = np.ones((3, 10), dtype=np.float32)
     active = np.ones((3, 10), dtype=bool)
-    monkeypatch.setattr(run, "analyze", lambda *_args, **_kwargs: (gains, active, {}))
+    analysis = AnalysisResult(gains, active, np.zeros(3), np.zeros(3), 20, 0, 1_000, 2)
+    monkeypatch.setattr(run, "analyze", lambda *_args, **_kwargs: analysis)
 
     def render(_infos, _gains, _settings, _start, _count, preview, _overwrite, **_kwargs):
         outputs = [run.output_path(info.path, preview) for info in infos]

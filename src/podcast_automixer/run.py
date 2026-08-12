@@ -83,12 +83,10 @@ def run_automix(
     absent_before_run = {path for path in artifacts if not path.exists()}
 
     try:
-        gains, active, analysis_report = analyze(
-            infos, request.settings, start, count, progress=progress
-        )
+        analysis = analyze(infos, request.settings, start, count, progress=progress)
         rendered = render(
             infos,
-            gains,
+            analysis.gains,
             request.settings,
             start,
             count,
@@ -96,11 +94,21 @@ def run_automix(
             overwrite,
             progress=progress,
         )
-        analysis_report["loudness"] = analyze_rendered_loudness(rendered)
-        write_report(report, infos, request.settings, gains, analysis_report)
-        write_html_report(html_report, infos, request.settings, gains, active, analysis_report)
+        analysis_report = {
+            **analysis.report_values,
+            "loudness": analyze_rendered_loudness(rendered),
+        }
+        write_report(report, infos, request.settings, analysis.gains, analysis_report)
+        write_html_report(
+            html_report,
+            infos,
+            request.settings,
+            analysis.gains,
+            analysis.active,
+            analysis_report,
+        )
         if diagnostics:
-            write_diagnostics(diagnostics, active, gains, request.settings.frame_ms)
+            write_diagnostics(diagnostics, analysis.active, analysis.gains, analysis.frame_ms)
     except Exception:
         for artifact in absent_before_run:
             artifact.unlink(missing_ok=True)
