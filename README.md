@@ -68,8 +68,14 @@ file. Each replacement is intended to line up exactly with its corresponding ori
 
 ## Requirements
 
-- Windows, macOS, or Linux
-- Python 3.11-3.13
+- Python 3.11-3.13 on a supported platform:
+
+  | Operating system | CPU architecture | Minimum version |
+  | --- | --- | --- |
+  | Windows | x86-64 (AMD64) | Windows 10 |
+  | macOS | Apple Silicon (arm64) | macOS 14 Sonoma |
+  | Linux | x86-64 or arm64 | glibc 2.28 |
+
 - [uv](https://docs.astral.sh/uv/)
 
 ## Run
