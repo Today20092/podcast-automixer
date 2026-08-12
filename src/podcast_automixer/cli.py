@@ -179,6 +179,9 @@ def main() -> None:
         console.print(f"  {result.html_report}")
         if result.diagnostics:
             console.print(f"  {result.diagnostics}")
+    except KeyboardInterrupt:
+        console.print("[yellow]Cancelled.[/yellow]")
+        raise SystemExit(130) from None
     except (AutomixError, OSError, ValueError) as exc:
         console.print(f"[bold red]Error:[/bold red] {exc}")
         raise SystemExit(2) from exc

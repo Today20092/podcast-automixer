@@ -1,7 +1,9 @@
-from pathlib import PurePosixPath, PureWindowsPath
+from io import StringIO
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import cast
 
 import pytest
+from rich.console import Console
 from rich.progress import Progress
 
 from podcast_automixer import cli
@@ -91,3 +93,23 @@ def test_overwrite_confirmation_suspends_progress_display(
 
     assert cli._confirm_overwrite(cast(Progress, FakeProgress()), 3) is True
     assert events == ["stop", "prompt", "start"]
+
+
+def test_cli_reports_clean_cancellation_without_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def cancel(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    output = StringIO()
+    monkeypatch.setattr(cli, "console", Console(file=output, color_system=None))
+    monkeypatch.setattr(cli, "_prompt_paths", lambda: [Path("one.wav"), Path("two.wav")])
+    monkeypatch.setattr(cli, "run_automix", cancel)
+    monkeypatch.setattr("sys.argv", ["podcast-automix"])
+
+    with pytest.raises(SystemExit) as stopped:
+        cli.main()
+
+    assert stopped.value.code == 130
+    assert "Cancelled." in output.getvalue()
+    assert "Complete." not in output.getvalue()
