@@ -3,10 +3,11 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
     "strict": true,
     "target": "ES2022",
     "lib": ["DOM", "ES2022"],
     "skipLibCheck": true
   },
-  "include": ["src.tsx"]
+  "include": ["src.tsx", "contract-check.ts"]
 }

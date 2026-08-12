@@ -70,7 +70,7 @@ interface LoudnessReport {
   virtual_mono_program: LoudnessMetrics
 }
 
-interface ReportData {
+export interface ReportData {
   openingTimeConstantMs: number
   closingTimeConstantMs: number
   attenuationDb: number

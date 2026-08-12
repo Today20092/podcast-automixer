@@ -13,11 +13,9 @@ from .core import (
     inspect_inputs,
     output_path,
     render,
-    write_diagnostics,
-    write_report,
 )
 from .loudness import analyze_rendered_loudness
-from .report import write_html_report
+from .report import Report, write_diagnostics, write_html_report, write_json_report
 
 OverwriteConfirmation = Callable[[int], bool]
 InputsReadyCallback = Callable[[list[AudioInfo]], None]
@@ -97,10 +95,11 @@ def run_automix(
             progress=progress,
         )
         analysis_report["loudness"] = analyze_rendered_loudness(rendered)
-        write_report(report, infos, request.settings, gains, analysis_report)
-        write_html_report(html_report, infos, request.settings, gains, active, analysis_report)
+        report_model = Report(infos, request.settings, gains, active, analysis_report)
+        write_json_report(report, report_model)
+        write_html_report(html_report, report_model)
         if diagnostics:
-            write_diagnostics(diagnostics, active, gains, request.settings.frame_ms)
+            write_diagnostics(diagnostics, report_model)
     except Exception:
         for artifact in absent_before_run:
             artifact.unlink(missing_ok=True)

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import csv
-import json
 import math
 import os
 import struct
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -358,54 +356,3 @@ def render(
                     )
         _inject_bext(info.path, destination, start_frame)
     return outputs
-
-
-def write_report(
-    destination: Path,
-    infos: list[AudioInfo],
-    settings: Settings,
-    gains: np.ndarray,
-    analysis_report: dict[str, Any],
-) -> None:
-    payload = {
-        "version": 1,
-        "inputs": [{**asdict(info), "path": str(info.path)} for info in infos],
-        "settings": {
-            **asdict(settings),
-            "opening_time_constant_ms": settings.open_ms,
-            "closing_time_constant_ms": settings.close_ms,
-        },
-        "analysis": analysis_report,
-        "gain_reduction_db": {
-            "mean": (20 * np.log10(np.maximum(gains, 1e-9))).mean(axis=1).tolist(),
-            "minimum": (20 * np.log10(np.maximum(gains, 1e-9))).min(axis=1).tolist(),
-        },
-    }
-    destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def write_diagnostics(
-    destination: Path, active: np.ndarray, gains: np.ndarray, frame_ms: int
-) -> None:
-    with destination.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(
-            [
-                "time_seconds",
-                "a01_active",
-                "a02_active",
-                "a03_active",
-                "a01_gain_db",
-                "a02_gain_db",
-                "a03_gain_db",
-            ]
-        )
-        gain_db = 20.0 * np.log10(np.maximum(gains, 1e-9))
-        for index in range(active.shape[1]):
-            writer.writerow(
-                [
-                    f"{index * frame_ms / 1000:.3f}",
-                    *(int(active[channel, index]) for channel in range(3)),
-                    *(f"{gain_db[channel, index]:.3f}" for channel in range(3)),
-                ]
-            )

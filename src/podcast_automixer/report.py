@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +11,76 @@ import numpy as np
 from .core import AudioInfo, Settings
 
 
-def build_report_insights(active: np.ndarray, gains: np.ndarray, frame_ms: int) -> dict[str, Any]:
+@dataclass(frozen=True)
+class Report:
+    """Facts and derived insights for every report format.
+
+    Array values are linear gain and frame ownership. Serialized units and nullability
+    are defined by the payload methods below.
+    """
+
+    infos: list[AudioInfo]
+    settings: Settings
+    gains: np.ndarray
+    active: np.ndarray
+    analysis: dict[str, Any]
+
+    @property
+    def gain_db(self) -> np.ndarray:
+        """Applied gain in decibels, floored to avoid negative infinity."""
+        return 20.0 * np.log10(np.maximum(self.gains, 1e-9))
+
+    def json_payload(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "inputs": [{**asdict(info), "path": str(info.path)} for info in self.infos],
+            "settings": {
+                **asdict(self.settings),
+                "opening_time_constant_ms": self.settings.open_ms,
+                "closing_time_constant_ms": self.settings.close_ms,
+            },
+            "analysis": self.analysis,
+            "gain_reduction_db": {
+                "mean": self.gain_db.mean(axis=1).tolist(),
+                "minimum": self.gain_db.min(axis=1).tolist(),
+            },
+        }
+
+    def html_payload(self) -> dict[str, Any]:
+        colors = ("#3b82f6", "#f59e0b", "#10b981")
+        return {
+            "attenuationDb": self.settings.attenuation_db,
+            "openingTimeConstantMs": self.settings.open_ms,
+            "closingTimeConstantMs": self.settings.close_ms,
+            "loudness": self.analysis.get("loudness"),
+            **build_report_insights(self.active, self.gain_db, self.settings.frame_ms),
+            "tracks": [
+                {
+                    "id": f"track-{index + 1}",
+                    "name": info.path.stem,
+                    "active": float(self.analysis["active_percent"][index]),
+                    "meanGain": float(self.gain_db[index].mean()),
+                    "calibration": float(self.analysis["calibration_db"][index]),
+                    "noiseFloor": float(self.analysis["noise_floor_db"][index]),
+                    "minimumGain": float(self.gain_db[index].min()),
+                    "color": colors[index],
+                }
+                for index, info in enumerate(self.infos)
+            ],
+        }
+
+    def diagnostics_rows(self) -> list[list[str | int]]:
+        return [
+            [
+                f"{index * self.settings.frame_ms / 1000:.3f}",
+                *(int(self.active[channel, index]) for channel in range(3)),
+                *(f"{self.gain_db[channel, index]:.3f}" for channel in range(3)),
+            ]
+            for index in range(self.active.shape[1])
+        ]
+
+
+def build_report_insights(active: np.ndarray, gain_db: np.ndarray, frame_ms: int) -> dict[str, Any]:
     """Summarize frame decisions into episode-scale, display-ready diagnostics."""
     frame_count = active.shape[1]
     frame_seconds = frame_ms / 1000
@@ -33,7 +104,6 @@ def build_report_insights(active: np.ndarray, gains: np.ndarray, frame_ms: int) 
         window_seconds = 30.0
     window_frames = max(1, round(window_seconds / frame_seconds))
 
-    gain_db = 20 * np.log10(np.maximum(gains, 1e-9))
     timeline = []
     for start in range(0, frame_count, window_frames):
         stop = min(start + window_frames, frame_count)
@@ -125,42 +195,34 @@ def build_report_insights(active: np.ndarray, gains: np.ndarray, frame_ms: int) 
     }
 
 
-def write_html_report(
-    destination: Path,
-    infos: list[AudioInfo],
-    settings: Settings,
-    gains: np.ndarray,
-    active: np.ndarray,
-    analysis_report: dict[str, Any],
-) -> None:
+def write_json_report(destination: Path, report: Report) -> None:
+    destination.write_text(json.dumps(report.json_payload(), indent=2), encoding="utf-8")
+
+
+def write_diagnostics(destination: Path, report: Report) -> None:
+    with destination.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(
+            [
+                "time_seconds",
+                "a01_active",
+                "a02_active",
+                "a03_active",
+                "a01_gain_db",
+                "a02_gain_db",
+                "a03_gain_db",
+            ]
+        )
+        writer.writerows(report.diagnostics_rows())
+
+
+def write_html_report(destination: Path, report: Report) -> None:
     """Write the interactive report as one self-contained HTML file."""
     bundle_path = Path(__file__).with_name("report.bundle.js")
     if not bundle_path.exists():
         raise RuntimeError("The packaged HTML report bundle is missing.")
 
-    gain_db = 20 * np.log10(np.maximum(gains, 1e-9))
-    colors = ("#3b82f6", "#f59e0b", "#10b981")
-    payload = {
-        "attenuationDb": settings.attenuation_db,
-        "openingTimeConstantMs": settings.open_ms,
-        "closingTimeConstantMs": settings.close_ms,
-        "loudness": analysis_report.get("loudness"),
-        **build_report_insights(active, gains, settings.frame_ms),
-        "tracks": [
-            {
-                "id": f"track-{index + 1}",
-                "name": info.path.stem,
-                "active": float(analysis_report["active_percent"][index]),
-                "meanGain": float(gain_db[index].mean()),
-                "calibration": float(analysis_report["calibration_db"][index]),
-                "noiseFloor": float(analysis_report["noise_floor_db"][index]),
-                "minimumGain": float(gain_db[index].min()),
-                "color": colors[index],
-            }
-            for index, info in enumerate(infos)
-        ],
-    }
-    data = json.dumps(payload, separators=(",", ":")).replace("<", "\\u003c")
+    data = json.dumps(report.html_payload(), separators=(",", ":")).replace("<", "\\u003c")
     bundle = bundle_path.read_text(encoding="utf-8")
     document = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
