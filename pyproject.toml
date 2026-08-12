@@ -4,6 +4,24 @@ version = "0.1.0"
 description = "Conservative offline automixing for synchronized podcast microphone stems"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [
+  { name = "Today20092" },
+]
+keywords = ["audio", "automixing", "podcast", "voice-activity-detection"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Sound/Audio",
+]
 dependencies = [
   "numpy>=2.1",
   "pyloudnorm>=0.2.0",
@@ -12,6 +30,12 @@ dependencies = [
   "silero-vad>=6.0",
   "soundfile>=0.13",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Today20092/podcast-automixer"
+Documentation = "https://github.com/Today20092/podcast-automixer#readme"
+Issues = "https://github.com/Today20092/podcast-automixer/issues"
+Source = "https://github.com/Today20092/podcast-automixer"
 
 [project.scripts]
 podcast-automix = "podcast_automixer.cli:main"
@@ -46,4 +70,3 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

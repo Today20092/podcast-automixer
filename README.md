@@ -44,6 +44,21 @@ untouched, and the replacement files can be inspected before they enter the edit
 - Produces JSON and self-contained HTML reports.
 - Can export frame-level activity and gain diagnostics as CSV.
 
+## Gain Smoothing Design
+
+Podcast Automixer uses a continuously retargetable gain envelope: the current gain
+smoothly chases the latest active or inactive target instead of jumping directly to it.
+This is well suited to speech because the envelope can reverse direction cleanly when a
+speaker resumes before a closing transition has finished.
+
+The design follows the transparent target-chasing philosophy demonstrated by Airwindows
+[PurestGain](https://github.com/airwindows/airwindows/tree/master/plugins/WinVST/PurestGain),
+but it is an independent implementation and does not embed PurestGain code. The planned
+timing model uses standard one-pole coefficients derived from explicit opening and closing
+time constants, with sample-level interpolation between analysis frames. Exact-duration
+S-curve envelopes are not planned: continuously retargetable Natural/chase smoothing is a
+better fit for changing speech decisions.
+
 ## Recommended Editing Workflow
 
 Opening and closing controls are time constants, not exact fade durations. Each value
@@ -77,6 +92,40 @@ file. Each replacement is intended to line up exactly with its corresponding ori
   | Linux | x86-64 or arm64 | glibc 2.28 |
 
 - [uv](https://docs.astral.sh/uv/)
+
+`uv` installs and manages a compatible Python version automatically.
+
+Intel Macs are not supported because the locked PyTorch and torchaudio releases do not
+publish compatible Intel macOS wheels. Windows on ARM and Linux distributions using musl
+(including Alpine) are also outside the supported matrix. On those systems, dependency
+installation may report that no compatible wheel is available; use one of the supported
+OS and architecture combinations above.
+
+## Install
+
+First, install `uv` if you do not already have it:
+
+**Windows (PowerShell)**
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS and Linux**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Open a new terminal if the installer asks you to refresh your `PATH`, then install Podcast
+Automixer:
+
+```bash
+uv tool install podcast-automixer
+```
+
+To upgrade it later, run `uv tool upgrade podcast-automixer`. To try it without permanently
+installing it, run `uvx podcast-automixer`.
 
 ## Run
 

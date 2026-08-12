@@ -1,0 +1,36 @@
+name: Publish release to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/podcast-automixer/
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Install Python 3.13
+        run: uv python install 3.13
+      - name: Verify tag matches package version
+        run: test "$GITHUB_REF_NAME" = "v$(uv version --short)"
+      - name: Build distributions
+        run: uv build
+      - name: Smoke-test wheel
+        run: uv run --isolated --no-project --with dist/*.whl podcast-automix --help
+      - name: Smoke-test source distribution
+        run: uv run --isolated --no-project --with dist/*.tar.gz podcast-automix --help
+      - name: Publish to PyPI
+        run: uv publish
