@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .artifacts import OverwriteConfirmation, RenderedAudioArtifacts
 from .core import (
     AudioInfo,
     AutomixError,
@@ -11,13 +12,10 @@ from .core import (
     Settings,
     analyze,
     inspect_inputs,
-    output_path,
-    render,
 )
 from .loudness import analyze_rendered_loudness
 from .report import Report, write_diagnostics, write_html_report, write_json_report
 
-OverwriteConfirmation = Callable[[int], bool]
 InputsReadyCallback = Callable[[list[AudioInfo]], None]
 
 
@@ -62,13 +60,13 @@ def run_automix(
     if start < 0 or count <= 0:
         raise AutomixError("Preview range is outside the files.")
 
-    outputs = [output_path(info.path, preview) for info in infos]
-    collisions = [path for path in outputs if path.exists()]
-    overwrite = request.overwrite
-    if collisions and not overwrite:
-        overwrite = bool(confirm_overwrite and confirm_overwrite(len(collisions)))
-        if not overwrite:
-            raise AutomixError("Cancelled; no output files were changed.")
+    rendered_audio = RenderedAudioArtifacts.prepare(
+        infos,
+        preview=preview,
+        overwrite=request.overwrite,
+        confirm_overwrite=confirm_overwrite,
+    )
+    outputs = rendered_audio.paths
 
     report = outputs[0].with_name("podcast-automix-report.json")
     html_report = outputs[0].with_name("podcast-automix-report.html")
@@ -82,14 +80,11 @@ def run_automix(
 
     try:
         analysis = analyze(infos, request.settings, start, count, progress=progress)
-        rendered = render(
-            infos,
+        rendered = rendered_audio.render(
             analysis.gains,
             request.settings,
             start,
             count,
-            preview,
-            overwrite,
             progress=progress,
         )
         analysis_report = {

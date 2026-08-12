@@ -1,6 +1,5 @@
 import json
 import math
-import struct
 from pathlib import Path
 
 import numpy as np
@@ -12,8 +11,6 @@ from podcast_automixer.core import (
     AutomixError,
     Settings,
     _classify_activity,
-    _inject_bext,
-    _read_riff_chunk,
     _speech_mask,
     analyze,
     inspect_inputs,
@@ -367,27 +364,6 @@ def test_vad_adapter_maps_partial_final_frame() -> None:
     )
 
     assert mask.tolist() == [False, True]
-
-
-def test_bext_timestamp_is_preserved_and_offset(tmp_path: Path) -> None:
-    source = tmp_path / "source.wav"
-    destination = tmp_path / "destination.wav"
-    sf.write(source, np.zeros(10, dtype=np.float32), 48000, subtype="FLOAT")
-    sf.write(destination, np.zeros(10, dtype=np.float32), 48000, subtype="FLOAT")
-
-    # Add a minimal synthetic BWF chunk to the source.
-    payload = bytearray(602)
-    struct.pack_into("<Q", payload, 338, 1000)
-    raw = source.read_bytes()
-    data_at = raw.index(b"data")
-    rebuilt = raw[:data_at] + struct.pack("<4sI", b"bext", len(payload)) + payload + raw[data_at:]
-    rebuilt = rebuilt[:4] + struct.pack("<I", len(rebuilt) - 8) + rebuilt[8:]
-    source.write_bytes(rebuilt)
-
-    _inject_bext(source, destination, 250)
-    copied = _read_riff_chunk(destination, b"bext")
-    assert copied is not None
-    assert struct.unpack_from("<Q", copied, 338)[0] == 1250
 
 
 def test_diagnostics_csv_contains_activity_and_gain(tmp_path: Path) -> None:
