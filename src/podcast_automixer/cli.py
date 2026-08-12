@@ -33,53 +33,43 @@ console = Console()
 
 
 def _path(value: str) -> Path:
-    return Path(value.strip().strip('"')).expanduser().resolve()
+    return Path(value).expanduser().resolve()
 
 
-def parse_dropped_paths(raw: str) -> list[Path]:
-    """Parse paths pasted by PowerShell/Windows Terminal drag-and-drop."""
-    tokens: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    escaped = False
-    for character in raw.strip():
-        if escaped:
-            current.append(character)
-            escaped = False
-        elif character == "`":
-            escaped = True
-        elif quote:
-            if character == quote:
-                quote = None
-            else:
-                current.append(character)
-        elif character in {'"', "'"}:
-            quote = character
-        elif character.isspace():
-            if current:
-                tokens.append("".join(current))
-                current = []
-        else:
-            current.append(character)
-    if escaped:
-        current.append("`")
-    if quote:
-        raise ValueError("An input path has an unmatched quote.")
-    if current:
-        tokens.append("".join(current))
-    return [_path(token) for token in tokens]
+def normalize_interactive_path(raw: str) -> str:
+    """Apply the interactive path contract without shell tokenization."""
+    value = raw.strip()
+    if not value:
+        raise ValueError("Path cannot be empty; please try again.")
+    for quote in ('"', "'"):
+        if value.startswith(quote) != value.endswith(quote):
+            raise ValueError("Path has an unmatched outer quote; please try again.")
+        if value.startswith(quote):
+            value = value[1:-1]
+            if not value:
+                raise ValueError("Path cannot be empty; please try again.")
+            break
+    return value
 
 
 def _prompt_paths() -> list[Path]:
     console.print(
         Panel(
-            "Drag all three synchronized WAV files here, then press Enter.\n"
-            "Windows will paste their quoted paths.",
+            "Drag or paste each synchronized WAV file when prompted.\n"
+            "Enter exactly one path at a time.",
             title="Podcast Automixer",
         )
     )
-    raw = Prompt.ask("WAV files")
-    return parse_dropped_paths(raw)
+    paths: list[Path] = []
+    for index in range(1, 4):
+        while True:
+            raw = Prompt.ask(f"WAV file {index}/3")
+            try:
+                paths.append(_path(normalize_interactive_path(raw)))
+                break
+            except ValueError as exc:
+                console.print(f"[bold red]Error:[/bold red] {exc}")
+    return paths
 
 
 def parser() -> argparse.ArgumentParser:

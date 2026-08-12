@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from podcast_automixer.cli import parse_dropped_paths, parser
+from podcast_automixer.cli import parser
 from podcast_automixer.core import (
     AutomixError,
     Settings,
@@ -453,17 +453,3 @@ def test_json_report_labels_envelope_time_constants(tmp_path: Path) -> None:
     assert settings["closing_time_constant_ms"] == 600
     assert settings["open_ms"] == 75
     assert settings["close_ms"] == 600
-
-
-def test_parse_powershell_drag_drop_paths_with_backtick_spaces() -> None:
-    raw = (
-        r"C:\Users\User\Downloads\chopshow` podcast` 155_A03.wav "
-        r"C:\Users\User\Downloads\chopshow` podcast` 155_A02.wav "
-        r"C:\Users\User\Downloads\chopshow` podcast` 155_A01.wav "
-    )
-    paths = parse_dropped_paths(raw)
-    assert [path.name for path in paths] == [
-        "chopshow podcast 155_A03.wav",
-        "chopshow podcast 155_A02.wav",
-        "chopshow podcast 155_A01.wav",
-    ]
