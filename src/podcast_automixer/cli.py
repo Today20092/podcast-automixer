@@ -16,18 +16,8 @@ from rich.progress import (
 from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Table
 
-from .core import (
-    AutomixError,
-    Settings,
-    analyze,
-    inspect_inputs,
-    output_path,
-    render,
-    write_diagnostics,
-    write_report,
-)
-from .loudness import analyze_rendered_loudness
-from .report import write_html_report
+from .core import AudioInfo, AutomixError, Settings
+from .run import RunRequest, run_automix
 
 console = Console()
 
@@ -118,45 +108,6 @@ def main() -> None:
                 open_ms=FloatPrompt.ask("Opening time constant (ms)", default=50.0),
                 close_ms=FloatPrompt.ask("Closing time constant (ms)", default=500.0),
             )
-        infos = inspect_inputs(paths)
-        table = Table(title="Validated synchronized inputs")
-        table.add_column("Track")
-        table.add_column("File")
-        table.add_column("Format")
-        table.add_column("Duration")
-        for index, info in enumerate(infos, 1):
-            table.add_row(
-                str(index),
-                info.path.name,
-                f"{info.samplerate} Hz {info.subtype} mono",
-                f"{info.frames / info.samplerate:.3f} s",
-            )
-        console.print(table)
-
-        preview = args.preview_start is not None
-        start = round((args.preview_start or 0.0) * infos[0].samplerate)
-        available = infos[0].frames - start
-        count = (
-            min(available, round(args.preview_duration * infos[0].samplerate))
-            if preview
-            else available
-        )
-        if start < 0 or count <= 0:
-            raise AutomixError("Preview range is outside the files.")
-
-        collisions = [
-            output_path(info.path, preview)
-            for info in infos
-            if output_path(info.path, preview).exists()
-        ]
-        overwrite = args.overwrite
-        if collisions and not overwrite:
-            overwrite = Confirm.ask(
-                f"{len(collisions)} output(s) exist. Overwrite all?", default=False
-            )
-            if not overwrite:
-                raise AutomixError("Cancelled; no output files were changed.")
-
         with Progress(
             TextColumn("{task.description:<28}"),
             BarColumn(),
@@ -166,62 +117,57 @@ def main() -> None:
             TimeRemainingColumn(),
             console=console,
         ) as progress_display:
-            analysis_task = progress_display.add_task("Analyzing track 1/3", total=3 * count)
+            tasks: dict[str, int] = {}
 
-            def analysis_progress(phase: str, track: int, completed: int, total: int) -> None:
+            def show_progress(phase: str, track: int, completed: int, total: int) -> None:
+                task = tasks.get(phase)
+                if task is None:
+                    task = progress_display.add_task(f"{phase} track {track}/3", total=total)
+                    tasks[phase] = task
                 progress_display.update(
-                    analysis_task,
+                    task,
                     description=f"{phase} track {track}/3",
                     completed=completed,
                     total=total,
                 )
 
-            gains, active, analysis_report = analyze(
-                infos, settings, start, count, progress=analysis_progress
-            )
-            progress_display.update(
-                analysis_task, description="Analysis complete", completed=3 * count
-            )
+            def show_inputs(infos: list[AudioInfo]) -> None:
+                table = Table(title="Validated synchronized inputs")
+                table.add_column("Track")
+                table.add_column("File")
+                table.add_column("Format")
+                table.add_column("Duration")
+                for index, info in enumerate(infos, 1):
+                    table.add_row(
+                        str(index),
+                        info.path.name,
+                        f"{info.samplerate} Hz {info.subtype} mono",
+                        f"{info.frames / info.samplerate:.3f} s",
+                    )
+                console.print(table)
 
-            render_task = progress_display.add_task("Rendering track 1/3", total=3 * count)
-
-            def render_progress(phase: str, track: int, completed: int, total: int) -> None:
-                progress_display.update(
-                    render_task,
-                    description=f"{phase} track {track}/3",
-                    completed=completed,
-                    total=total,
-                )
-
-            outputs = render(
-                infos,
-                gains,
-                settings,
-                start,
-                count,
-                preview,
-                overwrite,
-                progress=render_progress,
+            result = run_automix(
+                RunRequest(
+                    paths=paths,
+                    settings=settings,
+                    preview_start=args.preview_start,
+                    preview_duration=args.preview_duration,
+                    overwrite=args.overwrite,
+                    diagnostics=args.diagnostics,
+                ),
+                progress=show_progress,
+                inputs_ready=show_inputs,
+                confirm_overwrite=lambda count: Confirm.ask(
+                    f"{count} output(s) exist. Overwrite all?", default=False
+                ),
             )
-            progress_display.update(
-                render_task, description="Rendering complete", completed=3 * count
-            )
-
-        report = outputs[0].with_name("podcast-automix-report.json")
-        analysis_report["loudness"] = analyze_rendered_loudness(outputs)
-        write_report(report, infos, settings, gains, analysis_report)
-        html_report = outputs[0].with_name("podcast-automix-report.html")
-        write_html_report(html_report, infos, settings, gains, active, analysis_report)
-        if args.diagnostics:
-            diagnostics = outputs[0].with_name("podcast-automix-diagnostics.csv")
-            write_diagnostics(diagnostics, active, gains, settings.frame_ms)
         console.print("[green]Complete.[/green]")
-        for output in outputs:
+        for output in result.outputs:
             console.print(f"  {output}")
-        console.print(f"  {report}")
-        console.print(f"  {html_report}")
-        if args.diagnostics:
-            console.print(f"  {diagnostics}")
+        console.print(f"  {result.report}")
+        console.print(f"  {result.html_report}")
+        if result.diagnostics:
+            console.print(f"  {result.diagnostics}")
     except (AutomixError, OSError, ValueError) as exc:
         console.print(f"[bold red]Error:[/bold red] {exc}")
         raise SystemExit(2) from exc
