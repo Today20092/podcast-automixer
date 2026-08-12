@@ -39,8 +39,10 @@ def test_normalize_interactive_path_rejects_malformed_input(raw: str) -> None:
         cli.normalize_interactive_path(raw)
 
 
-def test_prompt_paths_retries_and_collects_exactly_three(monkeypatch: pytest.MonkeyPatch) -> None:
-    answers = iter(["", '"first file.wav"', "second`file.wav", "third file.wav"])
+def test_prompt_paths_retries_and_collects_until_blank(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers = iter(
+        ["", '"first file.wav"', "second`file.wav", "third file.wav", "fourth file.wav", ""]
+    )
     monkeypatch.setattr(cli.Prompt, "ask", lambda _prompt: next(answers))
 
     paths = cli._prompt_paths()
@@ -49,6 +51,7 @@ def test_prompt_paths_retries_and_collects_exactly_three(monkeypatch: pytest.Mon
         "first file.wav",
         "second`file.wav",
         "third file.wav",
+        "fourth file.wav",
     ]
 
 
