@@ -1,8 +1,8 @@
 ## Agent skills
 
-### Issue tracker
+### Local tickets
 
-Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+For creating, reading, triaging, claiming, or closing work items, use the Markdown tickets under `tickets/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

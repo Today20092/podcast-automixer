@@ -1,45 +1,36 @@
-# Issue tracker: GitHub
+# Issue tracker: local Markdown
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues and specs live under `tickets/`. Each ticket is one Markdown file whose directory is its workflow state:
 
-## Conventions
+- `tickets/open/`: available work
+- `tickets/in-progress/`: claimed work
+- `tickets/done/`: completed or declined work
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments with `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`, with appropriate `--label` and `--state` filters.
-- **Comment on an issue**: `gh issue comment <number> --body "..."`.
-- **Apply or remove labels**: `gh issue edit <number> --add-label "..."` or `--remove-label "..."`.
-- **Close**: `gh issue close <number> --comment "..."`.
+## Ticket format
 
-Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
+Use a zero-padded numeric ID and slug: `NNN-short-title.md`. Every ticket starts with:
 
-## Pull requests as a triage surface
+```yaml
+---
+id: 001
+title: Short imperative title
+status: open
+priority: high
+triage: ready-for-agent
+assignee: null
+---
+```
 
-**PRs as a request surface: no.** Set this to `yes` if the repository later treats external pull requests as feature requests.
+After the metadata, include `Problem`, `Scope`, `Acceptance criteria`, `Verification`, and `Log`. Acceptance criteria use Markdown checkboxes.
 
-When enabled, pull requests run through the same labels and states as issues using the `gh pr` equivalents:
+## Operations
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>`.
-- **List external PRs for triage**: use `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments`, retaining only external contributor associations.
-- **Comment, label, or close**: use `gh pr comment`, `gh pr edit`, and `gh pr close`.
+- **List**: enumerate `tickets/open/*.md` and inspect metadata before selecting work.
+- **Create**: choose one greater than the highest ID across all three directories and add it under `tickets/open/`.
+- **Read**: open the matching numeric filename in any state directory.
+- **Triage**: edit `priority` and `triage` using the roles in `docs/agents/triage-labels.md`.
+- **Claim**: move the file to `tickets/in-progress/`, set `status: in-progress`, set `assignee`, and append a dated `Log` entry.
+- **Comment**: append a dated bullet under `Log`.
+- **Close**: check completed acceptance criteria, append the verification result, move the file to `tickets/done/`, and set `status: done`. For declined work, set `triage: wontfix` and explain why in `Log`.
 
-GitHub shares one number space across issues and pull requests. Resolve an ambiguous `#42` with `gh pr view 42`, falling back to `gh issue view 42`.
-
-## When a skill says "publish to the issue tracker"
-
-Create a GitHub issue.
-
-## When a skill says "fetch the relevant ticket"
-
-Run `gh issue view <number> --comments`.
-
-## Wayfinding operations
-
-Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
-
-- **Map**: an issue labelled `wayfinder:map`, containing Notes, Decisions-so-far, and Fog.
-- **Child ticket**: an issue linked as a GitHub sub-issue. If sub-issues are unavailable, link it from a task list and add `Part of #<map>` to the child. Use `wayfinder:<type>` labels.
-- **Blocking**: use GitHub's native issue dependencies. Where unavailable, add a `Blocked by: #<n>` line to the child.
-- **Frontier query**: inspect the map's open children, exclude assigned or blocked issues, and select the first remaining issue in map order.
-- **Claim**: `gh issue edit <n> --add-assignee @me`.
-- **Resolve**: comment with the result, close the child, and add its context pointer to the map's Decisions-so-far.
+When a skill says to publish, fetch, claim, or resolve a ticket, perform the corresponding local operation above. A ticket is complete only when its acceptance criteria and verification are recorded in the file.
