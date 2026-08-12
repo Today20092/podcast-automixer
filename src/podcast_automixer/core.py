@@ -190,9 +190,7 @@ def analyze(
     if np.max(energies) <= -119.0:
         raise AutomixError("All three inputs are digital silence.")
 
-    active, calibration, floors = _classify_activity(
-        energies, speech, settings.ambiguity_db
-    )
+    active, calibration, floors = _classify_activity(energies, speech, settings.ambiguity_db)
 
     gains = make_gain_envelopes(active, settings)
     report = {
