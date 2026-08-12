@@ -62,12 +62,16 @@ jobs:
         run: uv run ruff format --check .
       - name: Lint
         run: uv run ruff check .
+      - name: Type-check
+        run: uv run ty check
       - name: Build distributions
         if: matrix.package-smoke
         run: uv build
       - name: Smoke-test installed wheel command
         if: matrix.package-smoke
+        shell: bash
         run: uv run --isolated --no-project --with dist/*.whl podcast-automix --help
       - name: Smoke-test source distribution
         if: matrix.package-smoke
+        shell: bash
         run: uv run --isolated --no-project --with dist/*.tar.gz podcast-automix --help

@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,
+    TaskID,
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
@@ -46,24 +47,26 @@ def _prompt_paths() -> list[Path]:
     console.print(
         Panel(
             "Drag or paste each synchronized WAV file when prompted.\n"
-            "Enter exactly one path at a time.",
+            "Enter one path at a time, then press Enter when all tracks are added.",
             title="Podcast Automixer",
         )
     )
     paths: list[Path] = []
-    for index in range(1, 4):
-        while True:
-            raw = Prompt.ask(f"WAV file {index}/3")
-            try:
-                paths.append(_path(normalize_interactive_path(raw)))
-                break
-            except ValueError as exc:
-                console.print(f"[bold red]Error:[/bold red] {exc}")
-    return paths
+    while True:
+        raw = Prompt.ask(f"WAV file {len(paths) + 1} (Enter when done)")
+        if not raw.strip():
+            if len(paths) >= 2:
+                return paths
+            console.print("[bold red]Error:[/bold red] At least two WAV files are required.")
+            continue
+        try:
+            paths.append(_path(normalize_interactive_path(raw)))
+        except ValueError as exc:
+            console.print(f"[bold red]Error:[/bold red] {exc}")
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="Automix three synchronized podcast stems")
+    result = argparse.ArgumentParser(description="Automix synchronized podcast stems")
     result.add_argument("files", nargs="*", type=_path)
     result.add_argument("--preview-start", type=float, default=None, metavar="SECONDS")
     result.add_argument("--preview-duration", type=float, default=30.0, metavar="SECONDS")
@@ -117,16 +120,18 @@ def main() -> None:
             TimeRemainingColumn(),
             console=console,
         ) as progress_display:
-            tasks: dict[str, int] = {}
+            tasks: dict[str, TaskID] = {}
 
             def show_progress(phase: str, track: int, completed: int, total: int) -> None:
                 task = tasks.get(phase)
                 if task is None:
-                    task = progress_display.add_task(f"{phase} track {track}/3", total=total)
+                    task = progress_display.add_task(
+                        f"{phase} track {track}/{len(paths)}", total=total
+                    )
                     tasks[phase] = task
                 progress_display.update(
                     task,
-                    description=f"{phase} track {track}/3",
+                    description=f"{phase} track {track}/{len(paths)}",
                     completed=completed,
                     total=total,
                 )

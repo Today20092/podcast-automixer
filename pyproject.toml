@@ -44,6 +44,7 @@ podcast-automix = "podcast_automixer.cli:main"
 dev = [
   "pytest>=8.3",
   "ruff>=0.12",
+  "ty>=0.0.1a21",
 ]
 
 [build-system]

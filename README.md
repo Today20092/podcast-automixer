@@ -1,15 +1,17 @@
 # Podcast Automixer
 
 [![Python](https://img.shields.io/badge/Python-3.11%E2%80%933.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/podcast-automixer?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/podcast-automixer/)
+[![CI](https://img.shields.io/github/actions/workflow/status/Today20092/podcast-automixer/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Today20092/podcast-automixer/actions/workflows/ci.yml)
 [![uv](https://img.shields.io/badge/uv-managed-DE5FE9?style=for-the-badge&logo=astral&logoColor=white)](https://docs.astral.sh/uv/)
 [![Silero VAD](https://img.shields.io/badge/Silero-VAD-00A67E?style=for-the-badge)](https://github.com/snakers4/silero-vad)
 [![WAV output](https://img.shields.io/badge/Output-WAV-7C3AED?style=for-the-badge)](https://github.com/Today20092/podcast-automixer)
 [![Offline](https://img.shields.io/badge/Processing-Offline-20232A?style=for-the-badge)](https://github.com/Today20092/podcast-automixer)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-> **Work in progress:** Podcast Automixer is becoming a free, open-source, cross-platform
-> automixing tool for podcast editors. The current version is a standalone Python CLI;
-> easier standalone packaging and deeper editor or DAW integration are future goals.
+> **Work in progress:** Podcast Automixer is a free, open-source, cross-platform Python CLI
+> for podcast editors. The CLI is published on PyPI; standalone desktop packaging and deeper
+> editor or DAW integration are future goals.
 
 Podcast Automixer creates one gently auto-mixed replacement WAV for each synchronized
 podcast microphone stem. Active microphones stay at unity while clearly inactive
@@ -19,6 +21,40 @@ timing or length of the recordings.
 It is designed as a preparation step between synchronizing a multitrack podcast and
 starting the editorial cut. It does not normalize, compress, limit, EQ, transcribe, or
 combine the microphones into a finished stereo mix.
+
+## Quick start
+
+Podcast Automixer is currently a command-line app. You need three synchronized mono WAV
+files—one isolated microphone recording per speaker—with matching sample rate, length, and
+bit depth.
+
+1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/), then open a new
+   terminal window.
+2. Install Podcast Automixer:
+
+   ```bash
+   uv tool install podcast-automixer
+   ```
+
+3. Start the guided workflow:
+
+   ```bash
+   podcast-automix
+   ```
+
+4. Paste the three WAV paths when prompted (Windows terminals also support drag-and-drop).
+5. Listen to the three new `_auto-mixed.wav` files written beside the originals, and open
+   `podcast-automix-report.html` to review what the automixer changed.
+
+The original recordings are never modified. For a 30-second test before processing the
+whole recording, run:
+
+```bash
+podcast-automix --preview-start 60 --preview-duration 30
+```
+
+That example starts one minute into the recording. See [Install](#install) and [Run](#run)
+for platform-specific commands, scripted usage, every output, and troubleshooting details.
 
 ## Why Podcast Automixer?
 
@@ -53,8 +89,8 @@ speaker resumes before a closing transition has finished.
 
 The design follows the transparent target-chasing philosophy demonstrated by Airwindows
 [PurestGain](https://github.com/airwindows/airwindows/tree/master/plugins/WinVST/PurestGain),
-but it is an independent implementation and does not embed PurestGain code. The planned
-timing model uses standard one-pole coefficients derived from explicit opening and closing
+but it is an independent implementation and does not embed PurestGain code. The timing
+model uses standard one-pole coefficients derived from explicit opening and closing
 time constants, with sample-level interpolation between analysis frames. Exact-duration
 S-curve envelopes are not planned: continuously retargetable Natural/chase smoothing is a
 better fit for changing speech decisions.
@@ -101,6 +137,8 @@ publish compatible Intel macOS wheels. Windows on ARM and Linux distributions us
 installation may report that no compatible wheel is available; use one of the supported
 OS and architecture combinations above.
 
+See [Platform support](docs/platform-support.md) for the dependency-level details.
+
 ## Install
 
 First, install `uv` if you do not already have it:
@@ -124,8 +162,18 @@ Automixer:
 uv tool install podcast-automixer
 ```
 
-To upgrade it later, run `uv tool upgrade podcast-automixer`. To try it without permanently
-installing it, run `uvx --from podcast-automixer podcast-automix`.
+The package is named `podcast-automixer`, and the command it installs is `podcast-automix`.
+Confirm the installation with `podcast-automix --help`.
+
+To upgrade later, run `uv tool upgrade podcast-automixer`. To uninstall, run
+`uv tool uninstall podcast-automixer`. To try it without permanently installing it, run:
+
+```bash
+uvx --from podcast-automixer podcast-automix
+```
+
+See the [Podcast Automixer project on PyPI](https://pypi.org/project/podcast-automixer/)
+for published versions and package files.
 
 ## Run
 
@@ -175,8 +223,14 @@ the `_auto-mixed.wav` suffix, and existing files are never silently replaced. Us
 `--preview-start 60 --preview-duration 30` for a short preview and `--advanced` to expose tuning
 controls.
 
-Add `--diagnostics` to write a frame-level CSV containing microphone activity decisions
-and applied gain. Self-contained HTML and machine-readable JSON reports are always produced.
+Each run writes:
+
+- One `_auto-mixed.wav` replacement beside each input microphone.
+- `podcast-automix-report.html`, a self-contained visual report beside the first input.
+- `podcast-automix-report.json`, a machine-readable report beside the first input.
+- `podcast-automix-diagnostics.csv` beside the first input when `--diagnostics` is supplied.
+
+Run `podcast-automix --help` for the complete command-line reference.
 
 ## Roadmap
 
@@ -184,12 +238,12 @@ and applied gain. Self-contained HTML and machine-readable JSON reports are alwa
 - [x] Timing-identical replacement WAV files for three synchronized microphones.
 - [x] Preview rendering and advanced command-line settings.
 - [x] JSON, HTML, and optional CSV diagnostics.
-- [ ] Expand the visual report to show when and how every microphone was attenuated.
-- [ ] Add interactive views for activity, gain changes, overlap, and crosstalk.
+- [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
 - [ ] Make advanced settings easier to understand, adjust, save, and reuse.
 - [ ] Add reusable presets for different rooms, microphones, and podcast styles.
 - [ ] Support a flexible number of microphone tracks.
-- [ ] Improve cross-platform installation and ship a standalone desktop experience.
+- [x] Publish a cross-platform command-line installation through PyPI and `uv`.
+- [ ] Ship a standalone desktop experience that does not require a Python tool manager.
 - [ ] Explore editor, DAW, or plugin integration without requiring it for basic use.
 - [ ] Add more listening tests and real-world podcast fixtures.
 
@@ -200,7 +254,11 @@ uv sync
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv run ty check
+uv build
 ```
+
+Release maintainers should follow [the release guide](docs/releasing.md).
 
 ## License
 
