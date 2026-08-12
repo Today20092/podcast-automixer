@@ -80,20 +80,51 @@ file. Each replacement is intended to line up exactly with its corresponding ori
 
 ## Run
 
-```bash
-uv sync
-uv run podcast-automix
-```
-
-Drag three WAV files into the terminal when prompted, or pass their paths directly:
+With no positional arguments, the interactive workflow asks for one WAV path at a time:
 
 ```bash
-uv run podcast-automix path/to/A01.wav path/to/A02.wav path/to/A03.wav
+podcast-automix
 ```
 
-Outputs are written beside each input with `_auto-mixed.wav`. Existing outputs are never
-silently replaced. Use `--preview-start 60 --preview-duration 30` for a short preview and
-`--advanced` to expose tuning controls.
+Paste each path exactly as it appears in the file manager. One matching pair of surrounding
+quotes is accepted. File Explorer drag-and-drop is supported in non-elevated PowerShell and
+Command Prompt terminals; terminal drag-and-drop is not advertised on macOS or Linux because
+shells may insert escape characters. On those systems, paste or type the unescaped path at
+each prompt instead.
+
+For scripting, pass three positional arguments and use the quoting rules of the current shell.
+These examples all include paths containing spaces:
+
+**Windows (PowerShell)**
+
+```powershell
+podcast-automix "C:\Audio Files\A01.wav" "C:\Audio Files\A02.wav" "C:\Audio Files\A03.wav"
+```
+
+**Windows (Command Prompt)**
+
+```batch
+podcast-automix "C:\Audio Files\A01.wav" "C:\Audio Files\A02.wav" "C:\Audio Files\A03.wav"
+```
+
+**macOS (zsh)**
+
+```bash
+podcast-automix '/Users/me/Audio Files/A01.wav' '/Users/me/Audio Files/A02.wav' '/Users/me/Audio Files/A03.wav'
+```
+
+**Linux (bash)**
+
+```bash
+podcast-automix '/home/me/Audio Files/A01.wav' '/home/me/Audio Files/A02.wav' '/home/me/Audio Files/A03.wav'
+```
+
+Use `--` before positional arguments when a relative filename begins with `-`. Relative paths
+are resolved from the terminal's current working directory. Symbolic links are resolved before
+processing, so outputs are written beside the link target, not beside the symlink. Outputs use
+the `_auto-mixed.wav` suffix, and existing files are never silently replaced. Use
+`--preview-start 60 --preview-duration 30` for a short preview and `--advanced` to expose tuning
+controls.
 
 Add `--diagnostics` to write a frame-level CSV containing microphone activity decisions
 and applied gain. Self-contained HTML and machine-readable JSON reports are always produced.

@@ -11,7 +11,9 @@ from podcast_automixer import cli
         ('"C:\\Audio Files\\voice ` one.wav"', "C:\\Audio Files\\voice ` one.wav"),
         ("'\\\\server\\share\\O’Brien.wav'", "\\\\server\\share\\O’Brien.wav"),
         ('"/Users/me/My Recording.wav"', "/Users/me/My Recording.wav"),
+        (r"/Users/me/My\ Recording.wav", r"/Users/me/My\ Recording.wav"),
         ("/home/me/it's ` here.wav", "/home/me/it's ` here.wav"),
+        ("-opening.wav", "-opening.wav"),
         ("C:\\Audio\\", "C:\\Audio\\"),
     ],
 )
@@ -55,3 +57,9 @@ def test_direct_cli_path_is_not_reparsed(monkeypatch: pytest.MonkeyPatch) -> Non
     parsed = cli.parser().parse_args([raw])
 
     assert parsed.files == [cli._path(raw)]
+
+
+def test_direct_cli_accepts_filename_beginning_with_dash_after_separator() -> None:
+    parsed = cli.parser().parse_args(["--", "-one.wav", "two.wav", "three.wav"])
+
+    assert [path.name for path in parsed.files] == ["-one.wav", "two.wav", "three.wav"]
