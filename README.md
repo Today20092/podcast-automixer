@@ -24,7 +24,7 @@ combine the microphones into a finished stereo mix.
 
 ## Video walkthrough
 
-[Watch the Podcast Automixer walkthrough on YouTube](https://youtu.be/IHV_LQvf9vQ) for a
+[Watch the Podcast Automixer walkthrough on YouTube](https://youtu.be/xbCE-IDPcnM) for a
 complete example: exporting synchronized microphone stems from DaVinci Resolve, running the
 automixer, reviewing its reports, and replacing the original tracks before editing.
 
