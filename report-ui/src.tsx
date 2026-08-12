@@ -1,5 +1,9 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
+import { defineChart, lineY } from '@tanstack/charts'
+import { scaleLinear } from '@tanstack/charts/scales/linear'
+import { tooltip } from '@tanstack/charts/tooltip'
+import { Chart } from '@tanstack/charts/react/tooltip'
 
 interface TrackRow {
   id: string
@@ -78,6 +82,16 @@ interface ReportData {
   track_summary: readonly TrackSummary[]
   tracks: readonly TrackRow[]
   loudness: LoudnessReport | null
+}
+
+interface GainPoint {
+  id: string
+  seconds: number
+  gainDb: number
+  trackId: string
+  trackName: string
+  color: string
+  window: TimelineWindow
 }
 
 function TimeConstantSummary({ report }: { report: ReportData }) {
@@ -194,6 +208,64 @@ function AttenuationOverview({ report }: { report: ReportData }) {
   )
 }
 
+function GainTimeline({ report }: { report: ReportData }) {
+  const [focused, setFocused] = React.useState<GainPoint | null>(null)
+  const points = React.useMemo<readonly GainPoint[]>(() => report.tracks.flatMap((track, channel) =>
+    report.timeline.map((window, index) => ({
+      id: `${track.id}-${index}`,
+      seconds: (window.start_seconds + window.end_seconds) / 2,
+      gainDb: window.gain_db[channel],
+      trackId: track.id,
+      trackName: track.name,
+      color: track.color,
+      window,
+    }))), [report])
+  const definition = React.useMemo(() => defineChart({
+    marks: [lineY(points, {
+      x: (point) => point.seconds,
+      y: (point) => point.gainDb,
+      z: (point) => point.trackId,
+      key: (point) => point.id,
+      stroke: (point) => point.color,
+      strokeWidth: 2,
+      points: true,
+    })],
+    x: { scale: scaleLinear, nice: true, grid: true, axis: { label: 'Episode time (seconds)' } },
+    y: { scale: scaleLinear, nice: true, grid: true, axis: { label: 'Applied gain (dB)' } },
+    focus: 'group-x',
+    tooltip: {
+      ...tooltip,
+      items: [
+        { id: 'track', label: 'Track', text: (point) => point.datum.trackName },
+        { id: 'time', label: 'Window', text: (point) => `${formatTime(point.datum.window.start_seconds)}–${formatTime(point.datum.window.end_seconds)}` },
+        { id: 'gain', label: 'Average gain', text: (point) => `${point.datum.gainDb.toFixed(2)} dB` },
+      ],
+    },
+  }), [points])
+
+  return (
+    <section className="panel" aria-labelledby="gain-timeline-title">
+      <div className="section-heading"><div><p className="eyebrow">WHAT THE AUTOMIX APPLIED</p><h2 id="gain-timeline-title">Gain reduction over time</h2>
+        <p>Each line is a microphone. Unity gain is 0 dB; values below it show how much that track was turned down. Points are smoothed window averages, not raw frame changes.</p></div></div>
+      <div className="chart-legend" aria-label="Track legend">{report.tracks.map((track) =>
+        <span key={track.id}><i style={{ background: track.color }} />{track.name}</span>)}</div>
+      <Chart<GainPoint, number, number>
+        definition={definition}
+        height={340}
+        ariaLabel="Applied gain in decibels over episode time for every microphone track"
+        ariaDescription="Zero decibels is unity gain. Lower values indicate stronger attenuation."
+        onFocusChange={(point) => setFocused(point?.datum ?? null)}
+        renderTooltipBody={({ points: tooltipPoints, defaultBody }) => tooltipPoints.length
+          ? <div className="gain-tooltip"><strong>{formatTime(tooltipPoints[0].datum.seconds)}</strong>{defaultBody}</div>
+          : null}
+      />
+      <p className="focus-readout" aria-live="polite">{focused
+        ? `${focused.trackName}, ${formatTime(focused.window.start_seconds)}–${formatTime(focused.window.end_seconds)}: ${focused.gainDb.toFixed(2)} dB average gain`
+        : 'Hover, tap, or use the keyboard to inspect a point.'}</p>
+    </section>
+  )
+}
+
 function SpeakerShare({ report }: { report: ReportData }) {
   return (
     <section className="panel" aria-labelledby="share-title">
@@ -246,7 +318,7 @@ function TrackDetails({ report }: { report: ReportData }) {
 function App() {
   const report = window.__PODCAST_REPORT__
   return <main><header><p className="eyebrow">AUTOMIX ANALYSIS</p><h1>Podcast mix report</h1><p className="subtitle">Clear ownership, attenuation, and moments worth reviewing</p></header>
-    <HealthSummary health={report.health} /><TimeConstantSummary report={report} /><LoudnessSummary report={report} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
+    <HealthSummary health={report.health} /><TimeConstantSummary report={report} /><LoudnessSummary report={report} /><GainTimeline report={report} /><AttenuationOverview report={report} /><SpeakerShare report={report} />
     <ReviewMoments report={report} /><TrackDetails report={report} /></main>
 }
 
@@ -256,6 +328,7 @@ style.textContent = `
 :root{color-scheme:light dark;--page:#f4f6fa;--surface:#fff;--ink:#172033;--muted:#657085;--line:#d9e0ea;--border:#d4dce8;--overlap:#f59e0b;--unowned:#94a3b8}
 @media(prefers-color-scheme:dark){:root{--page:#0c1119;--surface:#141b27;--ink:#f5f7fb;--muted:#a8b3c5;--line:#293346;--border:#344156;--overlap:#fbbf24;--unowned:#64748b}}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 Inter,ui-sans-serif,system-ui,sans-serif}main{width:min(1120px,100%);margin:auto;padding:40px 24px 56px}header{margin-bottom:30px}.eyebrow{margin:0 0 6px;color:#6687ff;font-size:.7rem;font-weight:750;letter-spacing:.14em}h1{margin:0;font-size:clamp(2rem,4vw,2.8rem);letter-spacing:-.04em}h2{margin:0;font-size:1.2rem;letter-spacing:-.015em}.subtitle,.section-heading p,.empty{color:var(--muted)}.subtitle{margin:7px 0 0}.section-heading{display:flex;justify-content:space-between;gap:20px;margin-bottom:18px}.section-heading p:not(.eyebrow){margin:5px 0 0;font-size:.86rem}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.metrics article,.panel,.track-grid article{background:var(--surface);border:1px solid var(--border);border-radius:14px}.metrics article{padding:16px;display:flex;flex-direction:column}.metrics span{color:var(--muted);font-size:.77rem}.metrics strong{font-size:1.55rem;margin:4px 0}.metrics small{color:var(--muted);font-size:.72rem}.panel{padding:22px;margin-top:16px}.lanes{display:grid;gap:9px}.lane{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:12px;align-items:center}.lane-label{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}.lane-label i,.track-grid article>span i{width:9px;height:9px;border-radius:50%;flex:none}.cells{display:grid;height:30px;gap:1px;background:var(--line);overflow:hidden;border-radius:4px}.cells>span{min-width:0}.event-lane .cells{height:10px;background:transparent}.overlap{background:var(--overlap)!important}.unowned{background:var(--unowned)!important}.time-axis{display:flex;justify-content:space-between;margin:7px 0 0 min(202px,25%);color:var(--muted);font-size:.72rem;font-variant-numeric:tabular-nums}.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;color:var(--muted);font-size:.76rem}.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:14px;height:9px;border-radius:2px;background:#6687ff}.legend .low{opacity:.16}.legend .high{opacity:.9}.share-list{display:grid;gap:10px}.share-row{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center}.share-row>span{color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}.stack{height:24px;display:flex;background:var(--line);overflow:hidden;border-radius:4px}.stack i{display:block;min-width:0}.moments{list-style:none;padding:0;margin:0}.moments li{display:grid;grid-template-columns:130px 1fr auto;gap:14px;padding:11px 0;border-top:1px solid var(--line);align-items:center}.moments strong,.moments b{font-variant-numeric:tabular-nums}.moments span{color:var(--muted)}.moments b{font-size:.8rem}.track-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.track-grid article{padding:16px}.track-grid article>span{display:flex;align-items:center;gap:7px;font-weight:700;overflow-wrap:anywhere}.track-grid dl{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0 0}.track-grid dl div{min-width:0}.track-grid dt{color:var(--muted);font-size:.72rem}.track-grid dd{margin:2px 0 0;font-weight:650;font-size:.84rem;font-variant-numeric:tabular-nums;white-space:nowrap}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.chart-legend{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 10px;color:var(--muted);font-size:.78rem}.chart-legend span{display:inline-flex;align-items:center;gap:6px}.chart-legend i{width:10px;height:10px;border-radius:50%}.focus-readout{min-height:1.4em;margin:8px 0 0;color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums}.gain-tooltip strong{display:block;margin-bottom:4px}
 @media(max-width:760px){main{padding:24px 14px 40px}.metrics{grid-template-columns:repeat(2,1fr)}.panel{padding:18px 12px}.lane{grid-template-columns:1fr;gap:4px}.time-axis{margin-left:0}.share-row{grid-template-columns:84px 1fr}.track-grid{grid-template-columns:1fr}.moments li{grid-template-columns:105px 1fr}.moments b{display:none}}
 `
 document.head.append(style)

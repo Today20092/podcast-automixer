@@ -6,6 +6,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/charts": "^0.11.0",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

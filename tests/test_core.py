@@ -50,8 +50,11 @@ def test_streaming_k_weighting_matches_single_pass() -> None:
 
     weighting = KWeightFilter(samplerate)
     actual = np.concatenate(
-        [weighting.process(audio[:12345]), weighting.process(audio[12345:54321]),
-         weighting.process(audio[54321:])]
+        [
+            weighting.process(audio[:12345]),
+            weighting.process(audio[12345:54321]),
+            weighting.process(audio[54321:]),
+        ]
     )
 
     assert actual == pytest.approx(expected, abs=1e-12)
@@ -77,10 +80,7 @@ def test_analysis_is_segment_size_independent_across_speech_boundaries(
         edges = np.diff(np.pad(voiced.astype(np.int8), (1, 1)))
         starts = np.flatnonzero(edges == 1)
         ends = np.flatnonzero(edges == -1)
-        return [
-            {"start": start, "end": end}
-            for start, end in zip(starts, ends, strict=True)
-        ]
+        return [{"start": start, "end": end} for start, end in zip(starts, ends, strict=True)]
 
     monkeypatch.setattr("podcast_automixer.core._load_vad", lambda: (object(), timestamps))
     infos = inspect_inputs(paths)
@@ -412,6 +412,8 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
     assert "<!doctype html>" in text
     assert "Automix health" in text
     assert "Attenuation overview" in text
+    assert "Gain reduction over time" in text
+    assert "Applied gain in decibels over episode time for every microphone track" in text
     assert "Speaker ownership by section" in text
     assert "Moments to review" in text
     assert "Opening time constant" in text
