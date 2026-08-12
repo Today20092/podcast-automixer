@@ -166,8 +166,8 @@ uv tool install podcast-automixer
 The package is named `podcast-automixer`, and the command it installs is `podcast-automix`.
 Confirm the installation with `podcast-automix --help`.
 
-To upgrade later, run `uv tool upgrade podcast-automixer`. To uninstall, run
-`uv tool uninstall podcast-automixer`. To try it without permanently installing it, run:
+To uninstall, run `uv tool uninstall podcast-automixer`. To try it without permanently
+installing it, run:
 
 ```bash
 uvx --from podcast-automixer podcast-automix
@@ -175,6 +175,24 @@ uvx --from podcast-automixer podcast-automix
 
 See the [Podcast Automixer project on PyPI](https://pypi.org/project/podcast-automixer/)
 for published versions and package files.
+
+## Updates
+
+Podcast Automixer does not update itself automatically. Upgrade to the newest published
+version whenever you are ready:
+
+```bash
+uv tool upgrade podcast-automixer
+```
+
+Each version is published on [PyPI](https://pypi.org/project/podcast-automixer/#history) and
+announced in [GitHub Releases](https://github.com/Today20092/podcast-automixer/releases) with
+release notes. To be notified, open the GitHub repository, choose **Watch → Custom →
+Releases**, and enable release notifications. This avoids notifications for ordinary code
+changes.
+
+Updates never modify existing recordings or prior output files. Review the release notes
+before upgrading if you depend on a particular command or setting.
 
 ## Run
 
@@ -245,6 +263,7 @@ Run `podcast-automix --help` for the complete command-line reference.
 - [ ] Add reusable presets for different rooms, microphones, and podcast styles.
 - [x] Support a flexible number of microphone tracks.
 - [x] Publish a cross-platform command-line installation through PyPI and `uv`.
+- [ ] Launch a GitHub Pages site that explains the project, signal flow, and editing workflow.
 - [ ] Ship a standalone desktop experience that does not require a Python tool manager.
 - [ ] Explore editor, DAW, or plugin integration without requiring it for basic use.
 - [ ] Add more listening tests and real-world podcast fixtures.

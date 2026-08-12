@@ -43,8 +43,17 @@ Environments**. No PyPI API-token secret is required.
    ```
 
 The workflow rejects a tag that does not match the version in `pyproject.toml`. After the
-workflow succeeds, verify the release on PyPI and test:
+workflow succeeds:
+
+1. Verify the release on PyPI and test it:
 
 ```bash
 uvx --from podcast-automixer podcast-automix --help
 ```
+
+2. Create a GitHub Release from the same tag. Give it a short, user-focused summary of the
+   changes, including any upgrade notes or behavior changes. GitHub then notifies people who
+   watch the repository's releases.
+
+Do not announce a release before the PyPI workflow succeeds. The README points users to both
+PyPI for the package and GitHub Releases for release notes and notifications.
