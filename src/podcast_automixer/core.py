@@ -31,8 +31,8 @@ class Settings:
     ambiguity_db: float = 9.0
     preroll_ms: int = 150
     hold_ms: int = 400
-    open_ms: int = 50
-    close_ms: int = 500
+    open_ms: float = 50.0
+    close_ms: float = 500.0
     segment_seconds: int = 30
 
 
