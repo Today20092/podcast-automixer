@@ -22,6 +22,12 @@ It is designed as a preparation step between synchronizing a multitrack podcast 
 starting the editorial cut. It does not normalize, compress, limit, EQ, transcribe, or
 combine the microphones into a finished stereo mix.
 
+## Video walkthrough
+
+[Watch the Podcast Automixer walkthrough on YouTube](https://youtu.be/IHV_LQvf9vQ) for a
+complete example: exporting synchronized microphone stems from DaVinci Resolve, running the
+automixer, reviewing its reports, and replacing the original tracks before editing.
+
 ## Quick start
 
 Podcast Automixer is currently a command-line app. You need at least two synchronized mono
