@@ -18,8 +18,6 @@ from podcast_automixer.core import (
     analyze,
     inspect_inputs,
     make_gain_envelopes,
-    write_diagnostics,
-    write_report,
 )
 from podcast_automixer.loudness import (
     KWeightFilter,
@@ -27,7 +25,13 @@ from podcast_automixer.loudness import (
     analyze_rendered_loudness,
     k_weight,
 )
-from podcast_automixer.report import build_report_insights, write_html_report
+from podcast_automixer.report import (
+    Report,
+    build_report_insights,
+    write_diagnostics,
+    write_html_report,
+    write_json_report,
+)
 
 
 def test_k_weighting_favors_voice_band_over_low_frequency_rumble() -> None:
@@ -149,7 +153,8 @@ def test_report_insights_summarize_ownership_and_choose_duration_windows() -> No
     )
     gains = np.where(active, 1.0, 10 ** (-6 / 20)).astype(np.float32)
 
-    insights = build_report_insights(active, gains, frame_ms=1000)
+    gain_db = 20 * np.log10(np.maximum(gains, 1e-9))
+    insights = build_report_insights(active, gain_db, frame_ms=1000)
 
     assert insights["health"] == {
         "single_owner_percent": 60.0,
@@ -164,12 +169,14 @@ def test_report_insights_summarize_ownership_and_choose_duration_windows() -> No
 
     long_active = np.zeros((3, 120 * 60 * 50), dtype=bool)
     long_gains = np.ones_like(long_active, dtype=np.float32)
-    long_insights = build_report_insights(long_active, long_gains, frame_ms=20)
+    long_insights = build_report_insights(long_active, np.zeros_like(long_gains), frame_ms=20)
     assert long_insights["window_seconds"] == 15.0
 
     overlong_active = np.zeros((3, 120 * 60 * 50 + 1), dtype=bool)
     overlong_gains = np.ones_like(overlong_active, dtype=np.float32)
-    overlong_insights = build_report_insights(overlong_active, overlong_gains, frame_ms=20)
+    overlong_insights = build_report_insights(
+        overlong_active, np.zeros_like(overlong_gains), frame_ms=20
+    )
     assert overlong_insights["window_seconds"] == 30.0
 
 
@@ -384,11 +391,11 @@ def test_bext_timestamp_is_preserved_and_offset(tmp_path: Path) -> None:
 
 
 def test_diagnostics_csv_contains_activity_and_gain(tmp_path: Path) -> None:
-
     path = tmp_path / "diagnostics.csv"
     active = np.array([[True], [False], [True]])
     gains = np.array([[1.0], [0.5], [1.0]], dtype=np.float32)
-    write_diagnostics(path, active, gains, 20)
+    report = Report([], Settings(), gains, active, {})
+    write_diagnostics(path, report)
     text = path.read_text(encoding="utf-8")
     assert "a02_gain_db" in text
     assert "0.000,1,0,1,0.000,-6.021,0.000" in text
@@ -409,7 +416,7 @@ def test_html_report_is_self_contained_and_escapes_track_names(tmp_path: Path) -
     }
 
     active = np.array([[True, False], [False, True], [False, False]])
-    write_html_report(destination, infos, Settings(), gains, active, analysis)
+    write_html_report(destination, Report(infos, Settings(), gains, active, analysis))
 
     text = destination.read_text(encoding="utf-8")
     assert "<!doctype html>" in text
@@ -445,12 +452,15 @@ def test_json_report_labels_envelope_time_constants(tmp_path: Path) -> None:
         sf.write(path, np.zeros(10, dtype=np.float32), 48000, subtype="FLOAT")
     destination = tmp_path / "report.json"
 
-    write_report(
+    write_json_report(
         destination,
-        inspect_inputs(source_paths),
-        Settings(open_ms=75, close_ms=600),
-        np.ones((3, 1), dtype=np.float32),
-        {},
+        Report(
+            inspect_inputs(source_paths),
+            Settings(open_ms=75, close_ms=600),
+            np.ones((3, 1), dtype=np.float32),
+            np.ones((3, 1), dtype=bool),
+            {},
+        ),
     )
 
     settings = json.loads(destination.read_text(encoding="utf-8"))["settings"]

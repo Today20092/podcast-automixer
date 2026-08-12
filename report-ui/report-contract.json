@@ -1,0 +1,43 @@
+{
+  "attenuationDb": -6.0,
+  "openingTimeConstantMs": 50.0,
+  "closingTimeConstantMs": 500.0,
+  "loudness": null,
+  "health": {
+    "single_owner_percent": 100.0,
+    "multiple_owner_percent": 0.0,
+    "unowned_percent": 0.0,
+    "switches_per_minute": 30.0
+  },
+  "window_seconds": 1.0,
+  "timeline": [
+    {
+      "start_seconds": 0.0,
+      "end_seconds": 1.0,
+      "gain_db": [0.0, 0.0, -6.021],
+      "attenuated_percent": [0.0, 0.0, 100.0],
+      "overlap_percent": 0.0,
+      "unowned_percent": 0.0
+    }
+  ],
+  "speaker_share": [
+    {
+      "start_seconds": 0.0,
+      "end_seconds": 2.0,
+      "track_percent": [50.0, 50.0, 0.0],
+      "overlap_percent": 0.0,
+      "unowned_percent": 0.0
+    }
+  ],
+  "review_moments": [],
+  "track_summary": [
+    {"exclusive_percent": 50.0, "active_percent": 50.0, "mean_gain_db": -3.01, "maximum_reduction_db": -6.02},
+    {"exclusive_percent": 50.0, "active_percent": 50.0, "mean_gain_db": 0.0, "maximum_reduction_db": 0.0},
+    {"exclusive_percent": 0.0, "active_percent": 0.0, "mean_gain_db": -6.02, "maximum_reduction_db": -6.02}
+  ],
+  "tracks": [
+    {"id": "track-1", "name": "A01", "active": 50.0, "meanGain": -3.01, "calibration": 0.0, "noiseFloor": -60.0, "minimumGain": -6.02, "color": "#3b82f6"},
+    {"id": "track-2", "name": "A02", "active": 50.0, "meanGain": 0.0, "calibration": 0.0, "noiseFloor": -60.0, "minimumGain": 0.0, "color": "#f59e0b"},
+    {"id": "track-3", "name": "A03", "active": 0.0, "meanGain": -6.02, "calibration": 0.0, "noiseFloor": -60.0, "minimumGain": -6.02, "color": "#10b981"}
+  ]
+}

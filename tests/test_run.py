@@ -30,7 +30,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
 
     monkeypatch.setattr(run, "render", render)
     monkeypatch.setattr(run, "analyze_rendered_loudness", lambda _outputs: {})
-    monkeypatch.setattr(run, "write_report", lambda destination, *_args: destination.touch())
+    monkeypatch.setattr(run, "write_json_report", lambda destination, *_args: destination.touch())
     monkeypatch.setattr(run, "write_html_report", lambda destination, *_args: destination.touch())
     return infos
 
@@ -84,7 +84,7 @@ def test_run_removes_new_artifacts_after_failure(
     def fail_report(*_args) -> None:
         raise OSError("report failed")
 
-    monkeypatch.setattr(run, "write_report", fail_report)
+    monkeypatch.setattr(run, "write_json_report", fail_report)
 
     with pytest.raises(OSError, match="report failed"):
         run.run_automix(run.RunRequest([info.path for info in infos], Settings()))
