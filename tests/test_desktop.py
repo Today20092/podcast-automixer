@@ -296,10 +296,43 @@ def test_comparison_playback_payload_and_renderer_share_program_sum_topology(
         encoding="utf-8"
     )
     assert "/ paths.length" not in renderer
-    assert "createMediaElementSource(item).connect(buses[name])" in renderer
+    assert "const source = context.createMediaElementSource(item)" in renderer
     assert "master.connect(context.destination)" in renderer
     assert "item.dataset.offset = offset" in renderer
     assert "seek(position()" in renderer
+
+
+def test_difference_playback_uses_aligned_loudness_matched_signed_sum() -> None:
+    renderer = (Path(desktop.__file__).parent / "comparison_playback.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "bus('difference:original', -originalGain)" in renderer
+    assert "bus('difference:automixed', automixedGain)" in renderer
+    assert "source.connect(buses[`difference:${name}`])" in renderer
+    assert "item.dataset.offset = offset" in renderer
+    assert "audio.map(item => item.play())" in renderer
+
+    original = np.array([0.25, -0.5, 0.75], dtype=np.float32)
+    identical = original.copy()
+    attenuated = original * 0.5
+    assert np.allclose(identical - original, 0.0, atol=np.finfo(np.float32).eps)
+    assert np.allclose(attenuated - original, [-0.125, 0.25, -0.375])
+
+
+def test_difference_switching_and_shared_output_protection_are_in_renderer() -> None:
+    renderer = (Path(desktop.__file__).parent / "comparison_playback.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "data-program=\"difference\"" in renderer
+    assert "select('difference')" in renderer
+    assert "context.createDynamicsCompressor()" in renderer
+    assert "node.connect(protection)" in renderer
+    assert "protection.connect(master)" in renderer
+    assert "master.connect(context.destination)" in renderer
+    assert "Difference = Automixed − Original" in renderer
+    assert "not a deliverable" in renderer
 
 
 def test_comparison_playback_peak_protection_is_in_both_reported_trims(
