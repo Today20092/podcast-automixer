@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
+// Timeline canvas and visible-range envelope techniques adapted from OpenCut Classic cf5e79e.
+
 type Lane = {
   recording_identity: string; name: string; color: string;
   waveform_levels: [number, number][][]; gain_adjusted_waveform_levels: [number, number][][];

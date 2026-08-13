@@ -318,3 +318,5 @@ JSON, and optional CSV artifacts.
 ## License
 
 Podcast Automixer is free and open-source software licensed under the [MIT License](LICENSE).
+
+The Diagnostic Timeline acknowledges techniques adapted from [OpenCut Classic](https://github.com/OpenCut-app/opencut-classic/tree/cf5e79e919144200294fb9fed22a222592a0aeea), used under its MIT license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the pinned source and notice.
