@@ -63,10 +63,33 @@ class DesktopBridge:
         )
         return list(selected or [])
 
-    def start_preview(self, paths: object, output_directory: object) -> dict[str, str]:
+    def start_preview(
+        self,
+        paths: object,
+        output_directory: object,
+        start_seconds: object = 0.0,
+        duration_seconds: object = 30.0,
+    ) -> dict[str, str | float]:
         recording_paths = self._paths(paths)
         if not isinstance(output_directory, str) or not output_directory:
             raise ValueError("output_directory must be a directory path")
+        if not isinstance(start_seconds, (int, float)) or not isinstance(
+            duration_seconds, (int, float)
+        ):
+            raise ValueError("Preview range must use numeric seconds")
+        if not 5.0 <= duration_seconds <= 600.0:
+            raise ValueError("Preview duration must be between 5 seconds and 10 minutes")
+
+        inspection = self._engine.inspect(recording_paths)
+        if inspection.problems or not inspection.inputs:
+            raise ValueError("Recording Set must be valid before creating a Preview Run")
+        recording_end = min(item.frames / item.samplerate for item in inspection.inputs)
+        if recording_end < 5.0:
+            raise ValueError("Recording Set must be at least 5 seconds long for a Preview Run")
+        start = min(max(float(start_seconds), 0.0), recording_end - 5.0)
+        duration = min(float(duration_seconds), recording_end - start)
+        destination = Path(output_directory) / "Preview Runs"
+        destination.mkdir(parents=True, exist_ok=True)
         with self._lock:
             if self._status["state"] in {"running", "cancelling"}:
                 raise RuntimeError("A Preview Run is already active")
@@ -74,17 +97,25 @@ class DesktopBridge:
             self._status = {"state": "running", "progress": None, "error": None}
             Thread(
                 target=self._preview,
-                args=(recording_paths, Path(output_directory), self._token),
+                args=(recording_paths, destination, start, duration, self._token),
                 daemon=True,
             ).start()
-        return {"state": "running"}
+        return {"state": "running", "start_seconds": start, "duration_seconds": duration}
 
-    def _preview(self, paths: list[Path], destination: Path, token: CancellationToken) -> None:
+    def _preview(
+        self,
+        paths: list[Path],
+        destination: Path,
+        start_seconds: float,
+        duration_seconds: float,
+        token: CancellationToken,
+    ) -> None:
         try:
             result = self._engine.preview(
                 paths,
                 destination,
-                duration_seconds=30.0,
+                start_seconds=start_seconds,
+                duration_seconds=duration_seconds,
                 progress=self._progress,
                 cancellation=token,
             )
@@ -116,6 +147,13 @@ class DesktopBridge:
                 self._status["state"] = "cancelling"
                 self._token.cancel()
             return {"state": self._status["state"]}
+
+    def choose_preview_directory(self) -> str | None:
+        """Open the Desktop Shell's native destination chooser for Preview Runs."""
+        import webview
+
+        selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
+        return str(selected) if selected else None
 
     def status(self) -> dict[str, Any]:
         with self._lock:

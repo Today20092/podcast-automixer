@@ -1,5 +1,6 @@
 from pathlib import Path
 from time import monotonic, sleep
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -37,20 +38,53 @@ def test_bridge_inspection_keeps_each_recording_visible_with_technical_details(
     ]
 
 
-def test_bridge_runs_fixed_preview_off_the_calling_thread_and_cancels(tmp_path: Path) -> None:
+def test_bridge_runs_selected_preview_off_the_calling_thread_and_cancels(tmp_path: Path) -> None:
     def fake_preview(_paths, _output, **kwargs):
+        assert kwargs["start_seconds"] == 2.0
         assert kwargs["duration_seconds"] == 30.0
+        assert _output == tmp_path / "Preview Runs"
         while True:
             kwargs["cancellation"].raise_if_cancelled()
             sleep(0.01)
 
     class FakeEngine:
+        @staticmethod
+        def inspect(_paths):
+            return AutomixEngine().inspect([source])
+
         preview = staticmethod(fake_preview)
 
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 40, dtype=np.float32), 48_000, subtype="FLOAT")
     bridge = DesktopBridge(FakeEngine())
-    assert bridge.start_preview([str(tmp_path / "voice.wav")], str(tmp_path))["state"] == "running"
+    result = bridge.start_preview([str(source)], str(tmp_path), 2.0, 30.0)
+    assert result == {"state": "running", "start_seconds": 2.0, "duration_seconds": 30.0}
     started = monotonic()
     assert bridge.cancel_preview()["state"] == "cancelling"
     while bridge.status()["state"] != "cancelled" and monotonic() - started < 1:
         sleep(0.01)
     assert bridge.status()["state"] == "cancelled"
+
+
+def test_bridge_clips_preview_range_at_recording_end(tmp_path: Path) -> None:
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 8, dtype=np.float32), 48_000, subtype="FLOAT")
+
+    class FakeEngine:
+        @staticmethod
+        def inspect(_paths):
+            return AutomixEngine().inspect([source])
+
+        @staticmethod
+        def preview(_paths, _output, **kwargs):
+            assert kwargs["start_seconds"] == 3.0
+            assert kwargs["duration_seconds"] == 5.0
+            kwargs["cancellation"].raise_if_cancelled()
+            return SimpleNamespace(outputs=[])
+
+    bridge = DesktopBridge(FakeEngine())
+    result = bridge.start_preview([str(source)], str(tmp_path), 7.0, 30.0)
+    assert result["start_seconds"] == 3.0
+    assert result["duration_seconds"] == 5.0
+    while bridge.status()["state"] != "complete":
+        sleep(0.01)
