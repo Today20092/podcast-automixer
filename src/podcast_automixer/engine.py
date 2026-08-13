@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = Settings()
 
 class AutomixEventName(StrEnum):
     ANALYZING = "analyzing"
+    CALCULATING_GAIN_AUTOMATION = "calculating_gain_automation"
     RENDERING = "rendering"
     MEASURING_LOUDNESS = "measuring_loudness"
 
@@ -130,6 +131,7 @@ class AutomixEngine:
     ) -> RunResult:
         event_names = {
             "Analyzing": AutomixEventName.ANALYZING,
+            "Calculating gain automation": AutomixEventName.CALCULATING_GAIN_AUTOMATION,
             "Rendering": AutomixEventName.RENDERING,
             "Measuring loudness": AutomixEventName.MEASURING_LOUDNESS,
         }

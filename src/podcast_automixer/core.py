@@ -212,6 +212,8 @@ def analyze(
 
     active, calibration, floors = _classify_activity(energies, speech, settings.ambiguity_db)
 
+    if progress:
+        progress("Calculating gain automation", 1, 1, 1)
     gains = make_gain_envelopes(active, settings)
     return AnalysisResult(
         gains=gains,

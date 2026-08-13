@@ -122,8 +122,17 @@ const api = new Proxy({} as DesktopApi,
   }) as DesktopApi;
 const base = (path: string) =>
   path.replaceAll("\\", "/").split("/").pop() || path;
-const clock = (seconds: number) =>
-  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds) % 60).padStart(2, "0")}`;
+const clock = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${(seconds - minutes * 60).toFixed(1).padStart(4, "0")}`;
+};
+const previewPhase = (phase?: string) =>
+  ({
+    analyzing: "Analyzing recordings",
+    calculating_gain_automation: "Calculating gain automation",
+    rendering: "Rendering preview audio",
+    measuring_loudness: "Preparing playback",
+  })[phase || ""] || "Analyzing recordings";
 
 function Waveform({
   paths,
@@ -254,12 +263,16 @@ export function App() {
     [overwrite, setOverwrite] = useState(false),
     [playing, setPlaying] = useState(false),
     [looping, setLooping] = useState(false),
-    [playbackPosition, setPlaybackPosition] = useState(0);
+    [playbackPosition, setPlaybackPosition] = useState(0),
+    [previewStartedAt, setPreviewStartedAt] = useState<number | null>(null),
+    [elapsedSeconds, setElapsedSeconds] = useState(0),
+    [preparingPlayback, setPreparingPlayback] = useState(false),
+    [completionAnnouncement, setCompletionAnnouncement] = useState("");
   const heading = useRef<HTMLHeadingElement>(null),
     controller = useRef<ComparisonAudioController | null>(null);
   const active = status.state === "running" || status.state === "cancelling",
     activeKind = active ? status.kind : undefined,
-    previewActive = active && activeKind !== "full_render",
+    previewActive = (active && activeKind !== "full_render") || preparingPlayback,
     renderActive = active && activeKind === "full_render",
     progress = "progress" in status ? status.progress : undefined;
   const inputDurations = (inspection?.inputs || []).map((i) => i.frames / i.samplerate);
@@ -335,6 +348,14 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [stage]);
+  useEffect(() => {
+    if (!previewActive || previewStartedAt === null) return;
+    const update = () =>
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - previewStartedAt) / 1000)));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [previewActive, previewStartedAt]);
   async function refresh() {
     try {
       const next = (await api.status()) as Status;
@@ -345,8 +366,11 @@ export function App() {
         next.kind !== "full_render" &&
         next.result
       ) {
-        setStage("review");
+        setPreparingPlayback(true);
         await loadComparison();
+        setPreparingPlayback(false);
+        setCompletionAnnouncement("Preview Run complete. Review opened.");
+        setStage("review");
       }
     } catch (e) {
       setError(`Unable to refresh the operation: ${String(e)}`);
@@ -411,6 +435,9 @@ export function App() {
   async function preview() {
     try {
       setError("");
+      setCompletionAnnouncement("");
+      setPreviewStartedAt(Date.now());
+      setElapsedSeconds(0);
       await api.start_preview(paths, start, duration);
       setStatus({ state: "running" });
       void refresh();
@@ -671,16 +698,19 @@ export function App() {
                 />
                 <FieldGroup className="range-fields">
                   <Field>
-                    <FieldLabel>Start</FieldLabel>
+                    <FieldLabel htmlFor="preview-start">Start</FieldLabel>
                     <Input
+                      id="preview-start"
                       type="number"
-                      value={start}
+                      step={0.1}
+                      value={start.toFixed(1)}
                       onChange={(e) => setStart(Number(e.target.value))}
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Duration</FieldLabel>
+                    <FieldLabel htmlFor="preview-duration">Duration</FieldLabel>
                     <Input
+                      id="preview-duration"
                       type="number"
                       min={5}
                       max={Math.min(600, total)}
@@ -693,8 +723,9 @@ export function App() {
                   <div className="operation" role="status">
                     <div>
                       <strong>
-                        {progress?.phase?.replaceAll("_", " ") ||
-                          "Preparing Preview Run"}
+                        {preparingPlayback
+                          ? "Preparing playback"
+                          : previewPhase(progress?.phase)}
                       </strong>
                       <Button
                         variant="outline"
@@ -707,13 +738,23 @@ export function App() {
                     </div>
                     <Progress
                       value={
-                        progress?.total
+                        preparingPlayback
+                          ? 100
+                          : progress?.total
                           ? (progress.completed /
                               progress.total) *
                             100
-                          : 12
+                          : null
                       }
                     />
+                    <p className="operation-detail">
+                      {progress?.total && !preparingPlayback
+                        ? `${Math.round((progress.completed / progress.total) * 100)}% · ${progress.completed.toLocaleString()} / ${progress.total.toLocaleString()}`
+                        : preparingPlayback
+                          ? "100%"
+                          : "Progress pending"}
+                      {` · Elapsed ${clock(elapsedSeconds)}`}
+                    </p>
                   </div>
                 )}
                 <footer>
@@ -838,6 +879,9 @@ export function App() {
                 </footer>
               </section>
             )}
+            <p className="sr-only" role="status" aria-live="polite">
+              {completionAnnouncement}
+            </p>
             {stage === "render" && (
               <section className="surface">
                 <div className="section-heading">

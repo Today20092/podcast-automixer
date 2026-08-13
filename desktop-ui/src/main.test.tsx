@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,10 +20,12 @@ const inputs = ["host.wav", "guest.wav"].map((path) => ({
 let operation: "idle" | "running" | "cancelling" | "complete" = "idle";
 let kind: "preview" | "full_render" = "preview";
 let selectedDirectory: string | null = null;
+let progress: { phase: string; completed: number; total: number } | undefined;
 const api = {
   status: vi.fn(async () => ({
     state: operation,
     ...(kind === "full_render" ? { kind: "full_render" } : {}),
+    ...(operation === "running" && progress ? { progress } : {}),
     ...(operation === "complete" ? { result: {} } : {}),
   })),
   inspect_recording_set: vi.fn(async () => ({ inputs, problems: [] })),
@@ -52,6 +54,7 @@ beforeEach(() => {
   operation = "idle";
   kind = "preview";
   selectedDirectory = null;
+  progress = undefined;
   vi.clearAllMocks();
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
   Object.defineProperty(window, "pywebview", { configurable: true, value: { api } });
@@ -171,13 +174,30 @@ describe("desktop workflow", () => {
     expect(primaryActions()).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Choose Preview Range" }));
     expect(primaryActions()).toHaveLength(1);
+    const startInput = screen.getByRole("spinbutton", { name: "Start" });
+    expect(startInput).toHaveValue(0);
+    fireEvent.change(startInput, { target: { value: "12.34" } });
+    expect(startInput).toHaveValue(12.3);
+    progress = { phase: "analyzing", completed: 25, total: 100 };
     await user.click(screen.getByRole("button", { name: "Create Preview" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel Preview" })).toBeVisible());
+    expect(screen.getByText("Analyzing recordings")).toBeVisible();
+    expect(screen.getByText(/25% · 25 \/ 100 · Elapsed 0:00\.0/)).toBeVisible();
+    expect(api.start_preview).toHaveBeenCalledWith(
+      inputs.map(({ path }) => path),
+      12.34,
+      30,
+    );
     expect(primaryActions()).toHaveLength(0);
     operation = "complete";
     await waitFor(() => expect(screen.getByRole("button", { name: "Render full recordings" })).toBeVisible(), { timeout: 1500 });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preview Run complete. Review opened.",
+    );
     expect(screen.queryByRole("button", { name: "Cancel Preview" })).not.toBeInTheDocument();
     expect(primaryActions()).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Try another section" }));
+    expect(screen.getByRole("spinbutton", { name: "Start" })).toHaveValue(12.3);
   });
 
   it("shows and routes comparison shortcuts while ignoring editable controls", async () => {

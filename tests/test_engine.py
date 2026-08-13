@@ -40,6 +40,7 @@ def test_preview_uses_explicit_destination_and_stable_progress(
         assert request.output_directory == destination
         assert request.preview_start == 2.0
         kwargs["progress"]("Analyzing", 1, 2, 3)
+        kwargs["progress"]("Calculating gain automation", 1, 1, 1)
         return RunResult([], destination / "report.json", destination / "report.html", None)
 
     AutomixEngine(fake_run).preview(
@@ -47,6 +48,7 @@ def test_preview_uses_explicit_destination_and_stable_progress(
     )
 
     assert events[0].name is AutomixEventName.ANALYZING
+    assert events[1].name is AutomixEventName.CALCULATING_GAIN_AUTOMATION
 
 
 def test_full_render_honors_cooperative_cancellation(
