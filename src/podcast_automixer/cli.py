@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import sys
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Never
 
 from rich.console import Console
 from rich.panel import Panel
@@ -133,8 +134,22 @@ def _output_directory(value: str) -> Path:
     return path
 
 
-def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(
+class _ArgumentParser(argparse.ArgumentParser):
+    automation = False
+
+    def exit(self, status: int = 0, message: str | None = None) -> Never:
+        if self.automation:
+            raise ValueError(message or "--help and --version are unavailable with --json")
+        super().exit(status, message)
+
+    def error(self, message: str) -> Never:
+        if self.automation:
+            raise ValueError(message)
+        super().error(message)
+
+
+def parser(*, automation: bool = False) -> argparse.ArgumentParser:
+    result = _ArgumentParser(
         description="Automix synchronized podcast stems",
         epilog=(
             "examples:\n"
@@ -145,6 +160,8 @@ def parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=False,
     )
+    result.automation = automation
+    result.add_argument("--json", action="store_true", help="write the Automation Result as JSON")
     result.add_argument(
         "--version", action="version", version=f"%(prog)s {version('podcast-automixer')}"
     )
@@ -227,13 +244,31 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    args = parser().parse_args()
+    automation_mode = "--json" in sys.argv[1:]
+    if automation_mode and any(option in sys.argv[1:] for option in ("-h", "--help", "--version")):
+        from .automation import result, write
+
+        write(
+            result(
+                status="error",
+                error=("invalid_arguments", "--help and --version are unavailable with --json"),
+            )
+        )
+        raise SystemExit(2)
+    try:
+        args = parser(automation=automation_mode).parse_args()
+    except ValueError as exc:
+        from .automation import result, write
+
+        write(result(status="error", error=("invalid_arguments", str(exc))))
+        raise SystemExit(2) from None
     global console
     if args.no_color:
         console.no_color = True
     from .configuration import resolve_settings, write_configuration
     from .core import AutomixError, Settings
 
+    settings = Settings()
     try:
         if args.write_config:
             incompatible = []
@@ -259,6 +294,19 @@ def main() -> None:
             if errors:
                 raise ValueError("\n".join(errors))
             write_configuration(args.write_config, settings, overwrite=args.overwrite)
+            if args.json:
+                from .automation import result as automation_result
+                from .automation import write
+
+                write(
+                    automation_result(
+                        status="success",
+                        kind="configuration",
+                        settings=settings,
+                        artifacts=[args.write_config],
+                    )
+                )
+                return
             console.print("Configuration written.")
             return
         errors = []
@@ -268,6 +316,8 @@ def main() -> None:
             errors.append(str(exc))
         if args.non_interactive and not args.files:
             errors.append("--non-interactive requires at least two WAV files.")
+        elif args.json and not args.files:
+            errors.append("--json requires at least two WAV files.")
         if errors:
             raise ValueError("\n".join(errors))
         from .engine import AutomixEngine
@@ -311,7 +361,7 @@ def main() -> None:
             TextColumn("ETA"),
             TimeRemainingColumn(),
             console=console,
-            disable=args.quiet,
+            disable=args.quiet or args.json,
         ) as progress_display:
             tasks: dict[str, TaskID] = {}
 
@@ -361,14 +411,30 @@ def main() -> None:
                     diagnostics=args.diagnostics,
                     output_directory=args.output_dir,
                 ),
-                progress=None if args.quiet else show_progress,
-                inputs_ready=None if args.quiet else show_inputs,
+                progress=None if args.quiet or args.json else show_progress,
+                inputs_ready=None if args.quiet or args.json else show_inputs,
                 confirm_overwrite=(
                     _require_overwrite
-                    if args.non_interactive
+                    if args.non_interactive or args.json
                     else lambda count: _confirm_overwrite(progress_display, count)
                 ),
             )
+        if args.json:
+            from .automation import result as automation_result
+            from .automation import write
+
+            artifacts = [*result.outputs, result.report, result.html_report]
+            if result.diagnostics:
+                artifacts.append(result.diagnostics)
+            write(
+                automation_result(
+                    status="success",
+                    inputs=paths,
+                    settings=settings,
+                    artifacts=artifacts,
+                )
+            )
+            return
         if not args.quiet:
             console.print("[green]Complete.[/green]")
         for output in result.outputs:
@@ -378,11 +444,70 @@ def main() -> None:
         if result.diagnostics:
             console.print(f"  {result.diagnostics}")
     except KeyboardInterrupt:
+        if automation_mode:
+            from .automation import result, write
+
+            write(
+                result(
+                    status="cancelled",
+                    inputs=getattr(args, "files", []),
+                    error=("cancelled", "Automix was cancelled."),
+                )
+            )
+            raise SystemExit(130) from None
         console.print("[yellow]Cancelled.[/yellow]")
         raise SystemExit(130) from None
     except (AutomixError, OSError, ValueError) as exc:
+        if automation_mode:
+            from .automation import result, write
+
+            message = str(exc)
+            if "already exist" in message:
+                code = "output_collision"
+            elif isinstance(exc, AutomixError):
+                if any(
+                    text in message
+                    for text in (
+                        "WAV files are required",
+                        "File not found",
+                        "Not a WAV",
+                        "requires mono",
+                        "Inputs must have identical",
+                        "Preview range is outside",
+                    )
+                ):
+                    code = "invalid_inputs"
+                else:
+                    code = "processing_failed"
+            elif getattr(args, "config", None) or getattr(args, "write_config", None):
+                code = "invalid_configuration"
+            else:
+                code = "invalid_arguments"
+            write(
+                result(
+                    status="error",
+                    inputs=getattr(args, "files", []),
+                    settings=settings,
+                    error=(code, message),
+                )
+            )
+            raise SystemExit(2) from None
         console.print(f"[bold red]Error:[/bold red] {exc}")
         raise SystemExit(2) from exc
+    except Exception as exc:
+        if automation_mode:
+            from .automation import result, write
+
+            write(
+                result(
+                    status="error",
+                    inputs=getattr(args, "files", []),
+                    settings=settings,
+                    error=("internal_failure", str(exc)),
+                )
+            )
+            raise SystemExit(1) from None
+        raise
 
 
 if __name__ == "__main__":

@@ -267,6 +267,19 @@ Each run writes:
 - `podcast-automix-report.json`, a machine-readable report beside the first input.
 - `podcast-automix-diagnostics.csv` beside the first input when `--diagnostics` is supplied.
 
+### Automation Contract
+
+Pass exact `--json` for noninteractive use. Standard output is one UTF-8 JSON object followed
+by one newline; handled outcomes leave standard error empty. Every result has
+`schema_version`, `cli_version`, `status`, `inputs`, `run`, `settings`, `artifacts`, `warnings`,
+and `error`. Schema version `1` consumers must ignore unknown fields added in later compatible
+revisions. JSON strings preserve Unicode and non-finite numbers are rejected rather than emitted.
+
+Exit statuses are `0` for success, `1` for an internal failure, `2` for an expected failure, and
+`130` for cancellation. Stable error codes are `invalid_arguments`, `invalid_configuration`,
+`invalid_inputs`, `output_collision`, `processing_failed`, `cancelled`, and `internal_failure`;
+message text is explanatory and is not an automation API.
+
 Run `podcast-automix --help` for the complete command-line reference.
 
 ## Roadmap
