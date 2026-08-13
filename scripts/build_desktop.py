@@ -14,6 +14,7 @@ run(
         "Podcast Automixer",
         f"--add-data={root / 'src' / 'podcast_automixer' / 'desktop.html'};podcast_automixer",
         f"--add-data={root / 'src' / 'podcast_automixer' / 'comparison_playback.js'};podcast_automixer",
+        f"--add-data={root / 'src' / 'podcast_automixer' / 'desktop_diagnostics.js'};podcast_automixer",
         "--collect-all",
         "silero_vad",
         "--collect-all",

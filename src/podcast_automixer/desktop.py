@@ -9,8 +9,11 @@ from dataclasses import asdict
 from json import dumps
 from pathlib import Path
 from threading import Lock, Thread
+from time import monotonic
 from typing import Any, cast
 
+from . import __version__
+from .diagnostics import DesktopDiagnostics
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 from .loudness import analyze_comparison_playback
 
@@ -49,14 +52,61 @@ class DesktopBridge:
 
     _PREVIEW_TEMPORARY_SUFFIXES = (".tmp", ".part", ".partial", ".bwf-tmp.wav")
 
-    def __init__(self, engine: Any | None = None) -> None:
+    def __init__(
+        self, engine: Any | None = None, diagnostics: DesktopDiagnostics | None = None
+    ) -> None:
         self._engine = engine or AutomixEngine()
+        self._diagnostics = diagnostics or DesktopDiagnostics(version=__version__)
         self._lock = Lock()
         self._token: CancellationToken | None = None
         self._status: dict[str, Any] = {"state": "idle", "progress": None, "error": None}
         self._last_success: dict[str, Any] | None = None
         self._last_full_render: dict[str, Any] | None = None
         self._full_render_acknowledged = False
+
+    def __getattribute__(self, name: str) -> Any:
+        """Time every public pywebview operation and retain unexpected tracebacks."""
+        value = super().__getattribute__(name)
+        if name.startswith("_") or not callable(value):
+            return value
+        diagnostics = super().__getattribute__("_diagnostics")
+
+        def operation(*args: Any, **kwargs: Any) -> Any:
+            started = monotonic()
+            diagnostics.log("operation_start operation=%s", name)
+            try:
+                return value(*args, **kwargs)
+            except Exception as exc:
+                diagnostics.exception(name, exc)
+                raise
+            finally:
+                elapsed = monotonic() - started
+                diagnostics.log("operation_finish operation=%s elapsed_seconds=%.3f", name, elapsed)
+                if elapsed >= 5:
+                    diagnostics.log(
+                        "operation_slow operation=%s elapsed_seconds=%.3f", name, elapsed
+                    )
+
+        return operation
+
+    def report_javascript_error(self, kind: object, message: object, stack: object = "") -> None:
+        """Accept only renderer diagnostics; never let malformed reports affect the UI."""
+        self._diagnostics.log(
+            "javascript_error kind=%s message=%s stack=%s", kind, message, stack, level=40
+        )
+
+    def open_diagnostics_folder(self) -> dict[str, str]:
+        """Open the local log directory without making shell failures user-visible."""
+        directory = self._diagnostics.directory
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            if hasattr(os, "startfile"):
+                os.startfile(directory)  # type: ignore[attr-defined]
+            else:
+                webbrowser.open(directory.as_uri())
+        except Exception as exc:
+            self._diagnostics.exception("open_diagnostics_folder", exc)
+        return {"path": str(directory)}
 
     @staticmethod
     def _default_full_render_directory(paths: list[Path]) -> Path:
@@ -196,8 +246,13 @@ class DesktopBridge:
             with self._lock:
                 self._status = {"state": "cancelled", "progress": None, "error": None}
         except Exception as exc:
+            self._diagnostics.exception("preview", exc)
             with self._lock:
-                self._status = {"state": "failed", "progress": None, "error": str(exc)}
+                self._status = {
+                    "state": "failed",
+                    "progress": None,
+                    "error": "Processing failed. Open diagnostics folder for details.",
+                }
 
     def _progress(self, event: AutomixEvent) -> None:
         with self._lock:
@@ -357,13 +412,14 @@ class DesktopBridge:
                     "kind": "full_render",
                 }
         except Exception as exc:
+            self._diagnostics.exception("full_render", exc)
             if remove_empty_destination:
                 _remove_empty_directory(destination)
             with self._lock:
                 self._status = {
                     "state": "failed",
                     "progress": None,
-                    "error": str(exc),
+                    "error": "Processing failed. Open diagnostics folder for details.",
                     "kind": "full_render",
                 }
 
@@ -482,6 +538,10 @@ def main() -> None:
     page = Path(__file__).with_name("desktop.html")
     window = webview.create_window("Podcast Automixer", page.as_uri(), js_api=DesktopBridge())
     assert window is not None
-    script = Path(__file__).with_name("comparison_playback.js")
-    window.events.loaded += lambda: window.evaluate_js(script.read_text(encoding="utf-8"))
+    scripts = ("comparison_playback.js", "desktop_diagnostics.js")
+    window.events.loaded += lambda: window.evaluate_js(
+        "\n".join(
+            Path(__file__).with_name(script).read_text(encoding="utf-8") for script in scripts
+        )
+    )
     webview.start(_bind_drop_events, (window,))
