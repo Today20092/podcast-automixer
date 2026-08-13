@@ -17,6 +17,8 @@ from .loudness import analyze_comparison_playback
 class DesktopBridge:
     """Expose Recording Set inspection plus separate preview and full-render journeys."""
 
+    _PREVIEW_TEMPORARY_SUFFIXES = (".tmp", ".part", ".partial", ".bwf-tmp.wav")
+
     def __init__(self, engine: Any | None = None) -> None:
         self._engine = engine or AutomixEngine()
         self._lock = Lock()
@@ -54,7 +56,9 @@ class DesktopBridge:
         paths = [Path(item) for item in value]
         if not all(path.suffix.lower() in {".wav", ".wave", ".w64", ".rf64"} for path in paths):
             raise ValueError("Recording Sets must contain WAV-family files")
-        return paths
+        if any(not path.is_absolute() or ".." in path.parts for path in paths):
+            raise ValueError("Recording Set paths must be absolute and must not traverse folders")
+        return [path.resolve() for path in paths]
 
     def inspect_recording_set(self, paths: object) -> dict[str, Any]:
         recording_paths = self._paths(paths)
@@ -186,6 +190,36 @@ class DesktopBridge:
 
         selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
         return str(selected) if selected else None
+
+    @classmethod
+    def _abandoned_preview_files(cls, output_directory: object) -> list[Path]:
+        """Find only known incomplete files inside the disposable Preview Runs folder."""
+        if not isinstance(output_directory, str) or not output_directory:
+            raise ValueError("output_directory must be a directory path")
+        preview_directory = Path(output_directory).resolve() / "Preview Runs"
+        if not preview_directory.is_dir():
+            return []
+        return [
+            path
+            for path in preview_directory.rglob("*")
+            if path.is_file()
+            and path.resolve().is_relative_to(preview_directory)
+            and path.name.lower().endswith(cls._PREVIEW_TEMPORARY_SUFFIXES)
+        ]
+
+    def abandoned_preview_runs(self, output_directory: object) -> dict[str, list[str]]:
+        """Report incomplete Preview Run artifacts without modifying any audio."""
+        return {"paths": [str(path) for path in self._abandoned_preview_files(output_directory)]}
+
+    def remove_abandoned_preview_runs(self, output_directory: object) -> dict[str, list[str]]:
+        """Remove only known temporary files under Preview Runs, never sources or Full Renders."""
+        abandoned = self._abandoned_preview_files(output_directory)
+        removed: list[str] = []
+        for path in abandoned:
+            with suppress(OSError):
+                path.unlink()
+                removed.append(str(path))
+        return {"paths": removed}
 
     def choose_full_render_directory(self) -> str | None:
         """Open the native destination chooser for Full Render deliverables."""

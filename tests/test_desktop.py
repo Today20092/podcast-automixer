@@ -16,6 +16,48 @@ def test_bridge_validates_only_wav_family_recording_sets() -> None:
         DesktopBridge(AutomixEngine()).inspect_recording_set(["voice.mp3"])
 
 
+@pytest.mark.parametrize("value", ["__import__('os').system('whoami')", ["../source.wav"]])
+def test_bridge_rejects_non_contract_and_traversal_inputs(value: object) -> None:
+    with pytest.raises(ValueError):
+        DesktopBridge(AutomixEngine()).inspect_recording_set(value)
+
+
+def test_preview_cleanup_removes_only_temporary_preview_artifacts(tmp_path: Path) -> None:
+    source = tmp_path / "source.wav"
+    full_render = tmp_path / "Podcast Automixer Output" / "complete.wav"
+    temporary = tmp_path / "Preview Runs" / "incomplete.bwf-tmp.wav"
+    completed_preview = tmp_path / "Preview Runs" / "complete-preview.wav"
+    source.write_bytes(b"source")
+    full_render.parent.mkdir()
+    full_render.write_bytes(b"render")
+    temporary.parent.mkdir()
+    temporary.write_bytes(b"temporary")
+    completed_preview.write_bytes(b"preview")
+
+    bridge = DesktopBridge()
+
+    assert bridge.abandoned_preview_runs(str(tmp_path)) == {"paths": [str(temporary)]}
+    assert bridge.remove_abandoned_preview_runs(str(tmp_path)) == {"paths": [str(temporary)]}
+    assert source.exists()
+    assert full_render.exists()
+    assert completed_preview.exists()
+    assert not temporary.exists()
+
+
+def test_desktop_shell_declares_accessible_compact_and_reduced_motion_contract() -> None:
+    page = (Path(desktop.__file__).parent / "desktop.html").read_text(encoding="utf-8")
+
+    for requirement in (
+        "@media(max-width:780px)",
+        "@media(prefers-reduced-motion:reduce)",
+        "focus-visible",
+        'role="status"',
+        'role="alert"',
+        'role="slider"',
+    ):
+        assert requirement in page
+
+
 def test_bridge_inspection_keeps_each_recording_visible_with_technical_details(
     tmp_path: Path,
 ) -> None:
