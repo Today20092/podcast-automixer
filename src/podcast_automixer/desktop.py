@@ -8,6 +8,7 @@ from threading import Lock, Thread
 from typing import Any, cast
 
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
+from .loudness import analyze_comparison_playback
 
 
 class DesktopBridge:
@@ -125,6 +126,9 @@ class DesktopBridge:
                     "progress": self._status["progress"],
                     "error": None,
                     "outputs": [str(path) for path in result.outputs],
+                    "paths": [str(path) for path in paths],
+                    "start_seconds": start_seconds,
+                    "duration_seconds": duration_seconds,
                 }
         except AutomixCancelled:
             with self._lock:
@@ -159,11 +163,45 @@ class DesktopBridge:
         with self._lock:
             return self._status.copy()
 
+    def comparison_playback(self) -> dict[str, Any]:
+        """Return immutable Preview Run sources and playback-only loudness matching."""
+        with self._lock:
+            if self._status["state"] != "complete":
+                raise ValueError("Comparison Playback requires a completed Preview Run")
+            paths = self._status.get("paths")
+            outputs = self._status.get("outputs")
+            start = self._status.get("start_seconds")
+            duration = self._status.get("duration_seconds")
+        if (
+            not isinstance(paths, list)
+            or not isinstance(outputs, list)
+            or not all(isinstance(path, str) for path in [*paths, *outputs])
+            or not isinstance(start, (int, float))
+            or not isinstance(duration, (int, float))
+        ):
+            raise ValueError("Preview Run audio is unavailable")
+        metrics = analyze_comparison_playback(
+            [Path(path) for path in paths],
+            [Path(path) for path in outputs],
+            float(start),
+            float(duration),
+        )
+        return {
+            "original_paths": paths,
+            "automixed_paths": outputs,
+            "start_seconds": start,
+            "duration_seconds": duration,
+            **metrics,
+        }
+
 
 def main() -> None:
     """Launch the packaged desktop shell only when pywebview is available."""
     import webview
 
     page = Path(__file__).with_name("desktop.html")
-    webview.create_window("Podcast Automixer", page.as_uri(), js_api=DesktopBridge())
+    window = webview.create_window("Podcast Automixer", page.as_uri(), js_api=DesktopBridge())
+    assert window is not None
+    script = Path(__file__).with_name("comparison_playback.js")
+    window.events.loaded += lambda: window.evaluate_js(script.read_text(encoding="utf-8"))
     webview.start()

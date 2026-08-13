@@ -88,3 +88,22 @@ def test_bridge_clips_preview_range_at_recording_end(tmp_path: Path) -> None:
     assert result["duration_seconds"] == 5.0
     while bridge.status()["state"] != "complete":
         sleep(0.01)
+
+
+def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: Path) -> None:
+    original = tmp_path / "original.wav"
+    rendered = tmp_path / "rendered.wav"
+    samples = np.sin(np.linspace(0, 100, 48_000, dtype=np.float32)) * 0.25
+    sf.write(original, samples, 48_000, subtype="FLOAT")
+    sf.write(rendered, samples * 0.5, 48_000, subtype="FLOAT")
+    bridge = DesktopBridge()
+    bridge._status = {
+        "state": "complete", "paths": [str(original)], "outputs": [str(rendered)],
+        "start_seconds": 0.0, "duration_seconds": 1.0,
+    }
+
+    comparison = bridge.comparison_playback()
+
+    assert comparison["standard"] == "ITU-R BS.1770 / EBU R 128"
+    assert comparison["playback_gain_db"]["original"] < 0
+    assert sf.read(original, dtype="float32")[0].max() == pytest.approx(samples.max())

@@ -252,3 +252,56 @@ def analyze_rendered_loudness(
         "stems": stem_results,
         "virtual_mono_program": program_result,
     }
+
+
+def analyze_comparison_playback(
+    original_paths: list[Path],
+    rendered_paths: list[Path],
+    start_seconds: float,
+    duration_seconds: float,
+) -> dict[str, Any]:
+    """Measure non-destructive, loudness-matched Comparison Playback programs."""
+    with sf.SoundFile(original_paths[0]) as first:
+        samplerate = first.samplerate
+    original_sources = [sf.SoundFile(path) for path in original_paths]
+    rendered_sources = [sf.SoundFile(path) for path in rendered_paths]
+    for source in original_sources:
+        source.seek(round(start_seconds * samplerate))
+    original_meter = _StreamingMeter(samplerate)
+    rendered_meter = _StreamingMeter(samplerate)
+    chunk_size = samplerate * 10
+    remaining = round(duration_seconds * samplerate)
+    try:
+        while remaining:
+            count = min(chunk_size, remaining)
+            originals = [source.read(count, dtype="float32") for source in original_sources]
+            rendered = [source.read(count, dtype="float32") for source in rendered_sources]
+            if not len(originals[0]) or not len(rendered[0]):
+                break
+            # Equal mixing plus a peak guard is the Monitoring Mix; neither input is written.
+            monitoring = np.sum(originals, axis=0) / len(originals)
+            peak = float(np.max(np.abs(monitoring)))
+            if peak > 1.0:
+                monitoring /= peak
+            original_meter.add(monitoring)
+            rendered_meter.add(np.sum(rendered, axis=0))
+            remaining -= len(originals[0])
+    finally:
+        for source in [*original_sources, *rendered_sources]:
+            source.close()
+    original = original_meter.result()
+    automixed = rendered_meter.result()
+    original_lufs = original["integrated_lufs"]
+    automixed_lufs = automixed["integrated_lufs"]
+    original_gain_db = automixed_gain_db = 0.0
+    if original_lufs is not None and automixed_lufs is not None:
+        if original_lufs > automixed_lufs:
+            original_gain_db = automixed_lufs - original_lufs
+        else:
+            automixed_gain_db = original_lufs - automixed_lufs
+    return {
+        "standard": "ITU-R BS.1770 / EBU R 128",
+        "monitoring_mix": original,
+        "automixed_virtual_program": automixed,
+        "playback_gain_db": {"original": original_gain_db, "automixed": automixed_gain_db},
+    }
