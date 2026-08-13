@@ -241,3 +241,24 @@ def test_cancelled_full_render_removes_its_new_empty_destination(tmp_path: Path)
     while bridge.status()["state"] != "cancelled":
         sleep(0.01)
     assert not (tmp_path / "Podcast Automixer Output").exists()
+
+
+def test_full_render_report_acknowledgement_is_separate_from_render_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = tmp_path / "report.html"
+    report.write_text("<html></html>", encoding="utf-8")
+    bridge = DesktopBridge()
+    bridge._last_full_render = {
+        "destination": str(tmp_path),
+        "outputs": [str(tmp_path / "mix.wav")],
+        "html_report": str(report),
+    }
+    opened: list[str] = []
+    monkeypatch.setattr(desktop.webbrowser, "open", opened.append)
+
+    assert bridge.close_state() == {"active_processing": False, "unacknowledged_full_render": True}
+    assert bridge.full_render_mix_report() == {"path": str(report), "url": report.as_uri()}
+    assert bridge.close_state() == {"active_processing": False, "unacknowledged_full_render": False}
+    assert bridge.open_full_render_mix_report()["url"] == report.as_uri()
+    assert opened == [report.as_uri()]

@@ -24,6 +24,7 @@ class DesktopBridge:
         self._status: dict[str, Any] = {"state": "idle", "progress": None, "error": None}
         self._last_success: dict[str, Any] | None = None
         self._last_full_render: dict[str, Any] | None = None
+        self._full_render_acknowledged = False
 
     @staticmethod
     def _default_full_render_directory(paths: list[Path]) -> Path:
@@ -274,6 +275,7 @@ class DesktopBridge:
             }
             with self._lock:
                 self._last_full_render = completed
+                self._full_render_acknowledged = False
                 self._status = {
                     "state": "complete",
                     "progress": self._status["progress"],
@@ -320,6 +322,32 @@ class DesktopBridge:
             pass
         return {"path": destination}
 
+    def full_render_mix_report(self) -> dict[str, str]:
+        """Return the completed Full Render's portable, self-contained Mix Report."""
+        with self._lock:
+            report = self._last_full_render and self._last_full_render.get("html_report")
+            if isinstance(report, str):
+                self._full_render_acknowledged = True
+        if not isinstance(report, str):
+            raise ValueError("A completed Full Render is required before viewing its Mix Report")
+        return {"path": report, "url": Path(report).as_uri()}
+
+    def open_full_render_mix_report(self) -> dict[str, str]:
+        """Open the portable Full Render Mix Report without affecting render success."""
+        report = self.full_render_mix_report()
+        with suppress(Exception):
+            webbrowser.open(report["url"])
+        return report
+
+    def close_state(self) -> dict[str, bool]:
+        """Expose the only two conditions that require a close confirmation."""
+        with self._lock:
+            active = self._status["state"] in {"running", "cancelling"}
+            unacknowledged = (
+                self._last_full_render is not None and not self._full_render_acknowledged
+            )
+        return {"active_processing": active, "unacknowledged_full_render": unacknowledged}
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             status = self._status.copy()
@@ -328,6 +356,7 @@ class DesktopBridge:
                 status["preview_result"] = self._last_success.copy()
             if self._last_full_render:
                 status["full_render_result"] = self._last_full_render.copy()
+                status["full_render_acknowledged"] = self._full_render_acknowledged
             return status
 
     def comparison_playback(self) -> dict[str, Any]:
