@@ -1,5 +1,7 @@
+from collections.abc import Callable
 from io import StringIO
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -70,6 +72,96 @@ def test_direct_cli_accepts_filename_beginning_with_dash_after_separator() -> No
     parsed = cli.parser().parse_args(["--", "-one.wav", "two.wav", "three.wav"])
 
     assert [path.name for path in parsed.files] == ["-one.wav", "two.wav", "three.wav"]
+
+
+def test_parser_exposes_all_engine_settings_and_disables_abbreviation() -> None:
+    parsed = cli.parser().parse_args(
+        [
+            "--attenuation",
+            "-8",
+            "--frame-ms",
+            "10",
+            "--ambiguity",
+            "7",
+            "--preroll-ms",
+            "100",
+            "--hold-ms",
+            "300",
+            "--open-ms",
+            "25",
+            "--close-ms",
+            "250",
+            "--segment-seconds",
+            "15",
+        ]
+    )
+
+    assert (
+        parsed.attenuation,
+        parsed.frame_ms,
+        parsed.ambiguity,
+        parsed.preroll_ms,
+        parsed.hold_ms,
+        parsed.open_ms,
+        parsed.close_ms,
+        parsed.segment_seconds,
+    ) == (-8.0, 10, 7.0, 100, 300, 25.0, 250.0, 15)
+    with pytest.raises(SystemExit):
+        cli.parser().parse_args(["--non-int"])
+
+
+def test_non_interactive_never_prompts_without_recordings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "_prompt_paths", lambda **_kwargs: pytest.fail("prompted"))
+    monkeypatch.setattr("sys.argv", ["podcast-automix", "--non-interactive"])
+
+    with pytest.raises(SystemExit) as stopped:
+        cli.main()
+
+    assert stopped.value.code == 2
+
+
+def test_quiet_routes_output_directory_and_keeps_artifact_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured = []
+
+    def run(request: object, **callbacks: object) -> object:
+        captured.append((request, callbacks))
+        return SimpleNamespace(
+            outputs=[tmp_path / "one_auto-mixed.wav"],
+            report=tmp_path / "podcast-automix-report.json",
+            html_report=tmp_path / "podcast-automix-report.html",
+            diagnostics=None,
+        )
+
+    output = StringIO()
+    monkeypatch.setattr(cli, "console", Console(file=output, color_system=None))
+    monkeypatch.setattr(cli, "run_automix", run)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "podcast-automix",
+            "--quiet",
+            "--non-interactive",
+            "--output-dir",
+            str(tmp_path),
+            "one.wav",
+            "two.wav",
+        ],
+    )
+
+    cli.main()
+
+    request, callbacks = captured[0]
+    assert request.output_directory == tmp_path.resolve()
+    assert callable(callbacks["progress"])
+    assert callbacks["inputs_ready"] is None
+    with pytest.raises(ValueError, match="--overwrite"):
+        cast(Callable[[int], bool], callbacks["confirm_overwrite"])(1)
+    assert "Complete." not in output.getvalue()
+    assert "one_auto-mixed.wav" in output.getvalue()
 
 
 def test_overwrite_confirmation_suspends_progress_display(
