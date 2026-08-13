@@ -8,7 +8,11 @@ import soundfile as sf
 
 import podcast_automixer.desktop as desktop
 from podcast_automixer.desktop import DesktopBridge
-from podcast_automixer.waveform import WAVEFORM_POINT_LIMIT, analyze_monitoring_waveform
+from podcast_automixer.waveform import (
+    WAVEFORM_POINT_LIMIT,
+    analyze_comparison_waveforms,
+    analyze_monitoring_waveform,
+)
 
 
 def write(path: Path, samples: np.ndarray, samplerate: int = 8_000) -> Path:
@@ -83,6 +87,23 @@ def test_bridge_returns_only_the_bounded_original_monitoring_mix(tmp_path: Path)
     assert result["program"] == "original_monitoring_mix"
     assert len(result["points"]) <= WAVEFORM_POINT_LIMIT
     assert len(dumps(result).encode()) < 16_000
+
+
+def test_comparison_waveforms_share_one_bounded_amplitude_domain(tmp_path: Path) -> None:
+    original = write(tmp_path / "original.wav", np.array([0.0, 0.5, -0.5, 1.0] * 2_000))
+    automixed = write(tmp_path / "automixed.wav", np.array([0.0, 0.25, -0.25, 0.5] * 2_000))
+
+    result = analyze_comparison_waveforms([original], [automixed], 0.0, 1.0, point_limit=32)
+
+    assert result["point_limit"] == 32
+    assert result["duration_seconds"] == pytest.approx(1.0)
+    assert len(result["original"]) <= 32
+    assert len(result["automixed"]) == len(result["original"])
+    assert len(result["difference"]) == len(result["original"])
+    assert max(high for _, high in result["original"]) == pytest.approx(1.0)
+    assert max(high for _, high in result["automixed"]) == pytest.approx(0.5)
+    difference_peak = max(abs(value) for point in result["difference"] for value in point)
+    assert difference_peak == pytest.approx(0.5)
 
 
 def test_renderer_uses_real_points_and_one_full_duration_time_axis() -> None:

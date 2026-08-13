@@ -85,6 +85,13 @@ type Comparison = {
   start_seconds: number;
   duration_seconds: number;
   playback_gain_db: { original: number; automixed: number };
+  waveforms: {
+    duration_seconds: number;
+    point_limit: number;
+    original: [number, number][];
+    automixed: [number, number][];
+    difference: [number, number][];
+  };
 };
 type WaveformStatus = { state: string; result?: { points?: [number, number][] } };
 type Destination = { unique: string };
@@ -243,6 +250,76 @@ function Waveform({
           width: `${(duration / total) * 100}%`,
         }}
       />
+    </div>
+  );
+}
+
+const envelopePath = (points: [number, number][]) =>
+  points.length
+    ? points
+        .map((point, index) => `${index ? "L" : "M"}${(index / (points.length - 1 || 1)) * 100},${50 - point[1] * 46}`)
+        .join(" ") +
+      " " +
+      [...points]
+        .reverse()
+        .map((point, reverseIndex) => {
+          const index = points.length - reverseIndex - 1;
+          return `L${(index / (points.length - 1 || 1)) * 100},${50 - point[0] * 46}`;
+        })
+        .join(" ") +
+      " Z"
+    : "";
+
+function ComparisonWaveform({ comparison, program, position, onSeek }: {
+  comparison: Comparison;
+  program: Program;
+  position: number;
+  onSeek: (position: number) => void;
+}) {
+  const seek = (clientX: number, element: HTMLElement) => {
+    const bounds = element.getBoundingClientRect();
+    onSeek(Math.max(0, Math.min(comparison.duration_seconds,
+      ((clientX - bounds.left) / bounds.width) * comparison.duration_seconds)));
+  };
+  const percent = (position / comparison.duration_seconds) * 100;
+  return (
+    <div
+      className={`comparison-waveform ${program === "difference" ? "is-difference" : ""}`}
+      role="slider"
+      tabIndex={0}
+      aria-label="Comparison playback position"
+      aria-valuemin={0}
+      aria-valuemax={comparison.duration_seconds}
+      aria-valuenow={position}
+      aria-valuetext={`${clock(position)} of ${clock(comparison.duration_seconds)}`}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        seek(event.clientX, event.currentTarget);
+      }}
+      onPointerMove={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) seek(event.clientX, event.currentTarget);
+      }}
+      onKeyDown={(event) => {
+        const next = event.key === "Home" ? 0
+          : event.key === "End" ? comparison.duration_seconds
+          : event.key === "ArrowLeft" || event.key === "ArrowDown" ? position - 1
+          : event.key === "ArrowRight" || event.key === "ArrowUp" ? position + 1
+          : null;
+        if (next !== null) { event.preventDefault(); onSeek(next); }
+      }}
+    >
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {program === "difference" ? (
+          <path className="difference-envelope selected" d={envelopePath(comparison.waveforms.difference)} />
+        ) : (
+          <>
+            <path className={`original-envelope ${program === "original" ? "selected" : ""}`} d={envelopePath(comparison.waveforms.original)} />
+            <path className={`automixed-envelope ${program === "automixed" ? "selected" : ""}`} d={envelopePath(comparison.waveforms.automixed)} />
+          </>
+        )}
+      </svg>
+      <span className="played-region" style={{ width: `${percent}%` }} />
+      <span className="comparison-playhead" style={{ left: `${percent}%` }} />
     </div>
   );
 }
@@ -808,6 +885,19 @@ export function App() {
                     </AlertDescription>
                   </Alert>
                 )}
+                {comparison && (
+                  <>
+                    <ComparisonWaveform
+                      comparison={comparison}
+                      program={program}
+                      position={playbackPosition}
+                      onSeek={(next) => controller.current?.seek(next)}
+                    />
+                    <div className="sr-only" aria-hidden="true">
+                      <Slider value={[playbackPosition]} max={comparison.duration_seconds} />
+                    </div>
+                  </>
+                )}
                 <div className="transport">
                   <Button
                     variant="outline"
@@ -825,20 +915,10 @@ export function App() {
                     </strong>
                     <span>
                       {comparison
-                        ? `${clock(comparison.start_seconds)} – ${clock(comparison.start_seconds + comparison.duration_seconds)}`
+                        ? `${clock(playbackPosition)} / ${clock(comparison.duration_seconds)}`
                         : "Loading comparison"}
                     </span>
                   </div>
-                  <Slider
-                    value={[playbackPosition]}
-                    max={comparison?.duration_seconds || 30}
-                    step={0.1}
-                    aria-label="Playback position"
-                    onValueChange={(value) => {
-                      const next = (Array.isArray(value) ? value[0] : value) || 0;
-                      controller.current?.seek(next);
-                    }}
-                  />
                   <Button
                     variant={looping ? "default" : "outline"}
                     aria-pressed={looping}

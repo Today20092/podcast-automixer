@@ -18,7 +18,7 @@ from . import __version__
 from .diagnostics import DesktopDiagnostics
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 from .loudness import analyze_comparison_playback
-from .waveform import analyze_monitoring_waveform
+from .waveform import analyze_comparison_waveforms, analyze_monitoring_waveform
 
 
 def _dropped_file_paths(event: object) -> list[str]:
@@ -594,11 +594,18 @@ class DesktopBridge:
             float(start),
             float(duration),
         )
+        waveforms = analyze_comparison_waveforms(
+            [Path(path) for path in paths],
+            [Path(path) for path in outputs],
+            float(start),
+            float(duration),
+        )
         return {
             "original_paths": paths,
             "automixed_paths": outputs,
             "start_seconds": start,
             "duration_seconds": duration,
+            "waveforms": waveforms,
             **metrics,
         }
 

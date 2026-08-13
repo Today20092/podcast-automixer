@@ -10,6 +10,49 @@ WAVEFORM_POINT_LIMIT = 512
 _CHUNK_FRAMES = 65_536
 
 
+def _peak_envelope(samples: np.ndarray, point_count: int, scale: float) -> list[list[float]]:
+    edges = np.linspace(0, len(samples), point_count + 1, dtype=np.int64)
+    return [
+        [
+            round(float(np.min(samples[edges[i] : edges[i + 1]])) / scale, 6),
+            round(float(np.max(samples[edges[i] : edges[i + 1]])) / scale, 6),
+        ]
+        for i in range(point_count)
+    ]
+
+
+def analyze_comparison_waveforms(
+    original_paths: list[Path],
+    automixed_paths: list[Path],
+    start_seconds: float,
+    duration_seconds: float,
+    point_limit: int = WAVEFORM_POINT_LIMIT,
+) -> dict[str, Any]:
+    """Return bounded Original, Automixed, and Difference peak envelopes."""
+    if not original_paths or not automixed_paths or point_limit < 1:
+        raise ValueError("Comparison waveforms require both programs")
+    originals = [sf.read(path, dtype="float32", always_2d=False)[0] for path in original_paths]
+    automixed = [sf.read(path, dtype="float32", always_2d=False)[0] for path in automixed_paths]
+    with sf.SoundFile(original_paths[0]) as source:
+        samplerate = source.samplerate
+    start = round(start_seconds * samplerate)
+    frames = max(1, round(duration_seconds * samplerate))
+    original = np.sum([samples[start : start + frames] for samples in originals], axis=0)
+    processed = np.sum([samples[:frames] for samples in automixed], axis=0)
+    count = min(len(original), len(processed))
+    original, processed = original[:count], processed[:count]
+    difference = processed - original
+    scale = max(float(np.max(np.abs(original))), float(np.max(np.abs(processed))), 1.0)
+    points = min(point_limit, count)
+    return {
+        "duration_seconds": count / samplerate,
+        "point_limit": point_limit,
+        "original": _peak_envelope(original, points, scale),
+        "automixed": _peak_envelope(processed, points, scale),
+        "difference": _peak_envelope(difference, points, scale),
+    }
+
+
 def analyze_monitoring_waveform(
     paths: list[Path], point_limit: int = WAVEFORM_POINT_LIMIT
 ) -> dict[str, Any]:

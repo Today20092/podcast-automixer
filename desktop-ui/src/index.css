@@ -238,9 +238,61 @@ input {
 .programs {
   justify-content: flex-start;
 }
+.comparison-waveform {
+  position: relative;
+  height: 190px;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+.comparison-waveform svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.comparison-waveform path {
+  opacity: 0.35;
+  stroke: none;
+}
+.comparison-waveform path.selected { opacity: 0.82; }
+.original-envelope { fill: color-mix(in srgb, var(--muted-foreground) 58%, transparent); }
+.automixed-envelope { fill: color-mix(in srgb, var(--primary) 62%, transparent); }
+.difference-envelope { fill: color-mix(in srgb, var(--primary) 70%, transparent); }
+.comparison-waveform::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+  pointer-events: none;
+}
+.played-region {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  pointer-events: none;
+}
+.comparison-playhead {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--background) 70%, transparent);
+  pointer-events: none;
+}
+.comparison-waveform:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
 .transport {
   display: grid;
-  grid-template-columns: auto minmax(140px, auto) 1fr;
+  grid-template-columns: auto minmax(140px, 1fr) auto;
   align-items: center;
   gap: 1rem;
   padding-block: 2rem;

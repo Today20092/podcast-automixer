@@ -36,6 +36,13 @@ const api = {
     original_paths: ["host.wav"], automixed_paths: ["preview.wav"],
     start_seconds: 0, duration_seconds: 30,
     playback_gain_db: { original: 0, automixed: 0 },
+    waveforms: {
+      duration_seconds: 30,
+      point_limit: 512,
+      original: [[-0.8, 0.8], [-0.4, 0.4]],
+      automixed: [[-0.5, 0.5], [-0.2, 0.2]],
+      difference: [[-0.3, 0.3], [-0.2, 0.2]],
+    },
   })),
   start_preview: vi.fn(async () => { operation = "running"; kind = "preview"; }),
   cancel_preview: vi.fn(async () => { operation = "cancelling"; }),
@@ -221,6 +228,29 @@ describe("desktop workflow", () => {
     await user.keyboard("a");
     expect(select).toHaveBeenCalledTimes(1);
     input.remove();
+  });
+
+  it("shows a shared waveform playhead and supports pointer and keyboard seeking", async () => {
+    const user = userEvent.setup();
+    const seek = vi.spyOn(ComparisonAudioController.prototype, "seek");
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Choose recordings" }));
+    await user.click(await screen.findByRole("button", { name: "Choose Preview Range" }));
+    await user.click(screen.getByRole("button", { name: "Create Preview" }));
+    operation = "complete";
+
+    const waveform = await screen.findByRole("slider", { name: "Comparison playback position" });
+    Object.defineProperty(waveform, "getBoundingClientRect", {
+      value: () => ({ left: 0, width: 600, top: 0, right: 600, bottom: 190, height: 190, x: 0, y: 0, toJSON: () => ({}) }),
+    });
+    fireEvent.pointerDown(waveform, { clientX: 300, pointerId: 1 });
+    expect(seek).toHaveBeenCalledWith(15);
+    waveform.focus();
+    await user.keyboard("{End}");
+    expect(seek).toHaveBeenCalledWith(30);
+    expect(waveform.querySelectorAll(".original-envelope, .automixed-envelope")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Difference" }));
+    expect(waveform.querySelector(".difference-envelope")).toBeInTheDocument();
   });
 
   it("keeps the chosen render directory across Back and retry, and shows Cancel only while active", async () => {
