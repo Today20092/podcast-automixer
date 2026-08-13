@@ -15,6 +15,7 @@ from podcast_automixer.core import (
     _classify_activity,
     _speech_mask,
     analyze,
+    expand_activity_targets,
     inspect_inputs,
     make_gain_envelopes,
 )
@@ -328,6 +329,18 @@ def test_gain_envelope_retargets_smoothly_from_current_value() -> None:
     assert gains[8] < gains[7]
     assert gains[9] > gains[8]
     assert gains[9] < 1.0
+
+
+def test_diagnostic_target_and_gain_share_the_same_expanded_timeline() -> None:
+    active = np.array([[False, True, False, False]], dtype=bool)
+    settings = Settings(frame_ms=100, preroll_ms=100, hold_ms=100, attenuation_db=-12)
+
+    expanded = expand_activity_targets(active, settings)
+    gains = make_gain_envelopes(active, settings, expanded=expanded)
+
+    assert expanded.tolist() == [[True, True, True, False]]
+    assert gains.shape == active.shape
+    assert gains[0, 3] < gains[0, 2]
 
 
 def test_gain_envelope_applies_default_preroll_and_hold_on_intended_sides() -> None:

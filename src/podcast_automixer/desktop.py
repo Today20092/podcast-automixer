@@ -14,6 +14,8 @@ from threading import Lock, Thread
 from time import monotonic, time
 from typing import Any, cast
 
+import numpy as np
+
 from . import __version__
 from .diagnostics import DesktopDiagnostics
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
@@ -300,6 +302,7 @@ class DesktopBridge:
                 "report": str(result.report),
                 "html_report": str(result.html_report),
                 "directory": str(destination),
+                "diagnostics": self._comparison_diagnostics(result, paths),
             }
             with self._lock:
                 self._last_success = completed
@@ -606,8 +609,39 @@ class DesktopBridge:
             "start_seconds": start,
             "duration_seconds": duration,
             "waveforms": waveforms,
+            "diagnostics": self._last_success.get("diagnostics", []),
             **metrics,
         }
+
+    @staticmethod
+    def _comparison_diagnostics(result: Any, paths: list[Path]) -> list[dict[str, Any]]:
+        """Serialize coherent engine analysis frames for Comparison Playback."""
+        analysis = getattr(result, "analysis", None)
+        if analysis is None or analysis.detected_speech is None or analysis.target_open is None:
+            return []
+        gain_db = 20.0 * np.log10(np.maximum(analysis.gains, np.finfo(float).tiny))
+        diagnostics = []
+        for channel, path in enumerate(paths):
+            frames = []
+            for index in range(analysis.gains.shape[1]):
+                target_open = bool(analysis.target_open[channel, index])
+                gain = float(gain_db[channel, index])
+                target_db = 0.0 if target_open else analysis.attenuation_db
+                if abs(gain - target_db) < 0.1:
+                    response = "open" if target_open else "attenuated"
+                else:
+                    response = "opening" if target_open else "closing"
+                frames.append(
+                    {
+                        "seconds": index * analysis.frame_ms / 1000.0,
+                        "speech": bool(analysis.detected_speech[channel, index]),
+                        "target_open": target_open,
+                        "gain_db": gain,
+                        "response": response,
+                    }
+                )
+            diagnostics.append({"name": path.stem, "frames": frames})
+        return diagnostics
 
     def preview_mix_report(self) -> dict[str, str]:
         """Return the latest successful Preview Run's self-contained Mix Report."""

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .artifacts import OverwriteConfirmation, RenderedAudioArtifacts
 from .core import (
+    AnalysisResult,
     AudioInfo,
     AutomixError,
     ProgressCallback,
@@ -37,6 +38,7 @@ class RunResult:
     report: Path
     html_report: Path
     diagnostics: Path | None
+    analysis: AnalysisResult | None = None
 
 
 def run_automix(
@@ -123,4 +125,4 @@ def run_automix(
             artifact.unlink(missing_ok=True)
         raise
 
-    return RunResult(rendered, report, html_report, diagnostics)
+    return RunResult(rendered, report, html_report, diagnostics, analysis)

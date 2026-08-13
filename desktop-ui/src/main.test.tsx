@@ -36,6 +36,10 @@ const api = {
     original_paths: ["host.wav"], automixed_paths: ["preview.wav"],
     start_seconds: 0, duration_seconds: 30,
     playback_gain_db: { original: 0, automixed: 0 },
+    diagnostics: [{ name: "host", frames: [
+      { seconds: 0, speech: true, target_open: true, gain_db: 0, response: "open" },
+      { seconds: 1, speech: false, target_open: false, gain_db: -3, response: "closing" },
+    ] }],
     waveforms: {
       duration_seconds: 30,
       point_limit: 512,
@@ -251,6 +255,20 @@ describe("desktop workflow", () => {
     expect(waveform.querySelectorAll(".original-envelope, .automixed-envelope")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Difference" }));
     expect(waveform.querySelector(".difference-envelope")).toBeInTheDocument();
+  });
+
+  it("explains one microphone from speech decision through applied gain", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Choose recordings" }));
+    await user.click(await screen.findByRole("button", { name: "Choose Preview Range" }));
+    await user.click(screen.getByRole("button", { name: "Create Preview" }));
+    operation = "complete";
+    expect(await screen.findByRole("region", { name: "host automix explanation" })).toBeVisible();
+    expect(screen.getByText("SPEECH")).toBeVisible();
+    expect(screen.getByText("TARGET")).toBeVisible();
+    expect(screen.getByLabelText("host applied gain in decibels")).toBeVisible();
+    expect(screen.getByText(/Speaking · Open target · 0.0 dB · At open target/)).toBeVisible();
   });
 
   it("keeps the chosen render directory across Back and retry, and shows Cancel only while active", async () => {

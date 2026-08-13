@@ -54,6 +54,9 @@ class AnalysisResult:
     start_sample: int
     sample_count: int
     samples_per_frame: int
+    detected_speech: np.ndarray | None = None
+    target_open: np.ndarray | None = None
+    attenuation_db: float = -6.0
 
     @property
     def report_values(self) -> dict[str, Any]:
@@ -214,10 +217,14 @@ def analyze(
 
     if progress:
         progress("Calculating gain automation", 1, 1, 1)
-    gains = make_gain_envelopes(active, settings)
+    target_open = expand_activity_targets(active, settings)
+    gains = make_gain_envelopes(active, settings, expanded=target_open)
     return AnalysisResult(
         gains=gains,
         active=active,
+        detected_speech=speech,
+        target_open=target_open,
+        attenuation_db=settings.attenuation_db,
         calibration_db=calibration,
         noise_floor_db=floors,
         frame_ms=settings.frame_ms,
@@ -252,7 +259,8 @@ def _classify_activity(
     return active, calibration, floors
 
 
-def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:
+def expand_activity_targets(active: np.ndarray, settings: Settings) -> np.ndarray:
+    """Expand ownership decisions by preroll and hold for the gain target."""
     frame_ms = settings.frame_ms
     preroll = math.ceil(settings.preroll_ms / frame_ms)
     hold = math.ceil(settings.hold_ms / frame_ms)
@@ -264,6 +272,15 @@ def make_gain_envelopes(active: np.ndarray, settings: Settings) -> np.ndarray:
         np.add.at(changes, np.minimum(active.shape[1], indices + hold + 1), -1)
         expanded[channel] = np.cumsum(changes[:-1]) > 0
 
+    return expanded
+
+
+def make_gain_envelopes(
+    active: np.ndarray, settings: Settings, *, expanded: np.ndarray | None = None
+) -> np.ndarray:
+    frame_ms = settings.frame_ms
+    if expanded is None:
+        expanded = expand_activity_targets(active, settings)
     floor_gain = 10.0 ** (settings.attenuation_db / 20.0)
     targets = np.where(expanded, 1.0, floor_gain)
     result = np.empty_like(targets, dtype=np.float32)

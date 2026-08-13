@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import "./index.css";
 import { ComparisonAudioController } from "./comparison-audio-controller";
+import { DiagnosticLane, type DiagnosticTrack } from "./diagnostic-lane";
 
 type Stage = "recordings" | "preview" | "review" | "render";
 type Theme = "system" | "light" | "dark";
@@ -85,6 +86,7 @@ type Comparison = {
   start_seconds: number;
   duration_seconds: number;
   playback_gain_db: { original: number; automixed: number };
+  diagnostics: DiagnosticTrack[];
   waveforms: {
     duration_seconds: number;
     point_limit: number;
@@ -934,6 +936,12 @@ export function App() {
                 <p className="shortcuts" aria-label="Playback shortcuts">
                   O Original · A Automixed · D Difference · Space Play/Pause · ←/→ Seek · L Loop
                 </p>
+                {comparison?.diagnostics[0] && (
+                  <div className="diagnostics-section">
+                    <div className="section-heading"><div><h2>Why this microphone changed</h2><p>Detected speech, the engine target, and its smoothed gain response share one timeline.</p></div></div>
+                    <DiagnosticLane track={comparison.diagnostics[0]} playhead={playbackPosition} />
+                  </div>
+                )}
                 <footer className="review-actions">
                   <Button
                     variant="outline"

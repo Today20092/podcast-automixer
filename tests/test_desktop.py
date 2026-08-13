@@ -239,6 +239,32 @@ def test_bridge_clips_preview_range_at_recording_end(tmp_path: Path) -> None:
         sleep(0.01)
 
 
+def test_comparison_diagnostics_serialize_coherent_engine_frames() -> None:
+    analysis = SimpleNamespace(
+        gains=np.array([[1.0, 0.8, 0.4, 0.7]], dtype=np.float32),
+        detected_speech=np.array([[True, False, False, True]]),
+        target_open=np.array([[True, False, False, True]]),
+        frame_ms=20,
+        attenuation_db=-12.0,
+    )
+
+    track = DesktopBridge._comparison_diagnostics(
+        SimpleNamespace(analysis=analysis), [Path("host.wav")]
+    )[0]
+
+    assert track["name"] == "host"
+    assert [frame["response"] for frame in track["frames"]] == [
+        "open",
+        "closing",
+        "closing",
+        "opening",
+    ]
+    assert track["frames"][1]["seconds"] == 0.02
+    assert track["frames"][1]["speech"] is False
+    assert track["frames"][1]["target_open"] is False
+    assert track["frames"][1]["gain_db"] == pytest.approx(20 * np.log10(0.8))
+
+
 def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: Path) -> None:
     original = tmp_path / "original.wav"
     rendered = tmp_path / "rendered.wav"
@@ -325,7 +351,7 @@ def test_difference_switching_and_shared_output_protection_are_in_renderer() -> 
         encoding="utf-8"
     )
 
-    assert "data-program=\"difference\"" in renderer
+    assert 'data-program="difference"' in renderer
     assert "select('difference')" in renderer
     assert "context.createDynamicsCompressor()" in renderer
     assert "node.connect(protection)" in renderer
