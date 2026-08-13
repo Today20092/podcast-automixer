@@ -9,6 +9,7 @@ import soundfile as sf
 import podcast_automixer.desktop as desktop
 from podcast_automixer.desktop import DesktopBridge, _dialog_path, _dropped_file_paths
 from podcast_automixer.engine import AutomixEngine
+from podcast_automixer.loudness import analyze_comparison_playback
 
 
 def test_bridge_validates_only_wav_family_recording_sets() -> None:
@@ -202,6 +203,75 @@ def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: 
     assert comparison["standard"] == "ITU-R BS.1770 / EBU R 128"
     assert comparison["playback_gain_db"]["original"] < 0
     assert sf.read(original, dtype="float32")[0].max() == pytest.approx(samples.max())
+
+
+@pytest.mark.parametrize("path_count", [1, 2, 3])
+def test_comparison_playback_payload_and_renderer_share_program_sum_topology(
+    tmp_path: Path, path_count: int
+) -> None:
+    samples = np.sin(np.linspace(0, 200, 48_000, dtype=np.float32)) * 0.1
+    originals = []
+    rendered = []
+    for index in range(path_count):
+        original = tmp_path / f"original-{index}.wav"
+        automixed = tmp_path / f"automixed-{index}.wav"
+        sf.write(original, samples, 48_000, subtype="FLOAT")
+        sf.write(automixed, samples, 48_000, subtype="FLOAT")
+        originals.append(original)
+        rendered.append(automixed)
+
+    comparison = analyze_comparison_playback(originals, rendered, 0.0, 1.0)
+    original_lufs = comparison["monitoring_mix"]["integrated_lufs"]
+    automixed_lufs = comparison["automixed_virtual_program"]["integrated_lufs"]
+
+    assert original_lufs == pytest.approx(automixed_lufs, abs=0.5)
+    assert comparison["playback_gain_db"]["original"] == pytest.approx(
+        comparison["playback_gain_db"]["automixed"]
+    )
+    if path_count == 3:
+        assert (
+            original_lufs
+            > analyze_comparison_playback(originals[:1], rendered[:1], 0.0, 1.0)["monitoring_mix"][
+                "integrated_lufs"
+            ]
+            + 9.0
+        )
+
+    renderer = (Path(desktop.__file__).parent / "comparison_playback.js").read_text(
+        encoding="utf-8"
+    )
+    assert "/ paths.length" not in renderer
+    assert "createMediaElementSource(item).connect(buses[name])" in renderer
+    assert "master.connect(context.destination)" in renderer
+    assert "item.dataset.offset = offset" in renderer
+    assert "seek(position()" in renderer
+
+
+def test_comparison_playback_peak_protection_is_in_both_reported_trims(
+    tmp_path: Path,
+) -> None:
+    samples = np.sin(np.linspace(0, 200, 48_000, dtype=np.float32)) * 0.8
+    originals = []
+    rendered = []
+    for index in range(2):
+        original = tmp_path / f"original-hot-{index}.wav"
+        automixed = tmp_path / f"automixed-hot-{index}.wav"
+        sf.write(original, samples, 48_000, subtype="FLOAT")
+        sf.write(automixed, samples, 48_000, subtype="FLOAT")
+        originals.append(original)
+        rendered.append(automixed)
+
+    comparison = analyze_comparison_playback(originals, rendered, 0.0, 1.0)
+
+    assert comparison["peak_protection_db"] < 0
+    for name, result in (
+        ("original", comparison["monitoring_mix"]),
+        ("automixed", comparison["automixed_virtual_program"]),
+    ):
+        assert (
+            result["maximum_estimated_true_peak_dbtp"] + comparison["playback_gain_db"][name]
+            <= 0.01
+        )
 
 
 def test_failed_replacement_keeps_the_last_successful_preview_and_report(

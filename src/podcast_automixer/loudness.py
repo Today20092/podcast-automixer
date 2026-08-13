@@ -278,12 +278,9 @@ def analyze_comparison_playback(
             rendered = [source.read(count, dtype="float32") for source in rendered_sources]
             if not len(originals[0]) or not len(rendered[0]):
                 break
-            # Equal mixing plus a peak guard is the Monitoring Mix; neither input is written.
-            monitoring = np.sum(originals, axis=0) / len(originals)
-            peak = float(np.max(np.abs(monitoring)))
-            if peak > 1.0:
-                monitoring /= peak
-            original_meter.add(monitoring)
+            # Browser playback uses the same unattenuated mono program sums. Gain and
+            # peak protection are applied once downstream, never per stem.
+            original_meter.add(np.sum(originals, axis=0))
             rendered_meter.add(np.sum(rendered, axis=0))
             remaining -= len(originals[0])
     finally:
@@ -299,9 +296,21 @@ def analyze_comparison_playback(
             original_gain_db = automixed_lufs - original_lufs
         else:
             automixed_gain_db = original_lufs - automixed_lufs
+    post_match_peaks = [
+        result["maximum_estimated_true_peak_dbtp"] + gain
+        for result, gain in (
+            (original, original_gain_db),
+            (automixed, automixed_gain_db),
+        )
+        if result["maximum_estimated_true_peak_dbtp"] is not None
+    ]
+    peak_protection_db = min(0.0, -max(post_match_peaks, default=-math.inf))
+    original_gain_db += peak_protection_db
+    automixed_gain_db += peak_protection_db
     return {
         "standard": "ITU-R BS.1770 / EBU R 128",
         "monitoring_mix": original,
         "automixed_virtual_program": automixed,
         "playback_gain_db": {"original": original_gain_db, "automixed": automixed_gain_db},
+        "peak_protection_db": peak_protection_db,
     }
