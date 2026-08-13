@@ -50,6 +50,7 @@ import {
   X,
 } from "lucide-react";
 import "./index.css";
+import { ComparisonAudioController } from "./comparison-audio-controller";
 
 type Stage = "recordings" | "preview" | "review" | "render";
 type Theme = "system" | "light" | "dark";
@@ -252,10 +253,10 @@ export function App() {
     [destination, setDestination] = useState(""),
     [overwrite, setOverwrite] = useState(false),
     [playing, setPlaying] = useState(false),
+    [looping, setLooping] = useState(false),
     [playbackPosition, setPlaybackPosition] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null),
-    audio = useRef<HTMLAudioElement[]>([]),
-    audioOffsets = useRef<number[]>([]);
+    controller = useRef<ComparisonAudioController | null>(null);
   const active = status.state === "running" || status.state === "cancelling",
     activeKind = active ? status.kind : undefined,
     previewActive = active && activeKind !== "full_render",
@@ -310,6 +311,30 @@ export function App() {
     const timer = setInterval(() => void refresh(), 350);
     return () => clearInterval(timer);
   }, [active]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (stage !== "review" || !controller.current) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [role=slider], [contenteditable=true]") || target?.closest("[contenteditable=true]")) return;
+      const key = event.key.toLowerCase();
+      if (!["o", "a", "d", " ", "arrowleft", "arrowright", "l"].includes(key)) return;
+      event.preventDefault();
+      if (key === " ") void controller.current.toggle();
+      else if (key === "arrowleft") controller.current.seek(controller.current.position() - 5);
+      else if (key === "arrowright") controller.current.seek(controller.current.position() + 5);
+      else if (key === "l") {
+        const next = !controller.current.isLooping();
+        controller.current.setLoop(next);
+        setLooping(next);
+      } else {
+        const next = ({ o: "original", a: "automixed", d: "difference" } as const)[key as "o" | "a" | "d"];
+        controller.current.select(next);
+        setProgram(next);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stage]);
   async function refresh() {
     try {
       const next = (await api.status()) as Status;
@@ -360,80 +385,28 @@ export function App() {
   async function loadComparison() {
     try {
       const data = await api.comparison_playback();
+      controller.current?.stop();
+      const nextController = new ComparisonAudioController(data);
+      nextController.subscribe((position, active) => {
+        setPlaybackPosition(position);
+        setPlaying(active);
+      });
+      controller.current = nextController;
       setComparison(data);
       setProgram("original");
+      setLooping(false);
       setPlaybackPosition(0);
     } catch (e) {
       setError(`Preview completed, but the comparison could not be loaded: ${String(e)}`);
     }
   }
   function changeStage(next: Stage) {
-    audio.current.forEach((a) => a.pause());
+    controller.current?.stop();
     setPlaying(false);
     setStage(next);
   }
   async function play() {
-    if (!comparison) return;
-    if (playing) {
-      audio.current.forEach((a) => a.pause());
-      setPlaying(false);
-      return;
-    }
-    audio.current.forEach((a) => {
-      a.pause();
-      a.src = "";
-    });
-    const context = new AudioContext(),
-      protection = context.createDynamicsCompressor();
-    protection.connect(context.destination);
-    const originalGain = Math.pow(
-      10,
-      comparison.playback_gain_db.original / 20,
-    );
-    const automixedGain = Math.pow(
-      10,
-      comparison.playback_gain_db.automixed / 20,
-    );
-    const programs: [string[], number, number][] =
-      program === "difference"
-        ? [
-            [
-              comparison.original_paths,
-              -originalGain,
-              comparison.start_seconds,
-            ],
-            [comparison.automixed_paths, automixedGain, 0],
-          ]
-        : [
-            [
-              program === "original"
-                ? comparison.original_paths
-                : comparison.automixed_paths,
-              program === "original" ? originalGain : automixedGain,
-              program === "original" ? comparison.start_seconds : 0,
-            ],
-          ];
-    audioOffsets.current = programs.flatMap(([paths, , offset]) => paths.map(() => offset));
-    audio.current = programs.flatMap(([paths, gain, offset]) =>
-      paths.map((path, index) => {
-        const item = new Audio(`file:///${path.replaceAll("\\", "/")}`);
-        const relative = playbackPosition;
-        item.currentTime = offset + relative;
-        if (index === 0) {
-          item.ontimeupdate = () => setPlaybackPosition(Math.max(0, item.currentTime - offset));
-          item.onended = () => setPlaying(false);
-        }
-        const source = context.createMediaElementSource(item),
-          bus = context.createGain();
-        bus.gain.value = gain;
-        source.connect(bus);
-        bus.connect(protection);
-        return item;
-      }),
-    );
-    await context.resume();
-    await Promise.all(audio.current.map((a) => a.play()));
-    setPlaying(true);
+    await controller.current?.toggle();
   }
   async function preview() {
     try {
@@ -772,9 +745,9 @@ export function App() {
                   value={[program]}
                   onValueChange={(v) => {
                     if (!v[0]) return;
-                    audio.current.forEach((item) => item.pause());
-                    setPlaying(false);
-                    setProgram(v[0] as Program);
+                    const next = v[0] as Program;
+                    controller.current?.select(next);
+                    setProgram(next);
                   }}
                   aria-label="Comparison program"
                   className="programs"
@@ -822,13 +795,24 @@ export function App() {
                     aria-label="Playback position"
                     onValueChange={(value) => {
                       const next = (Array.isArray(value) ? value[0] : value) || 0;
-                      setPlaybackPosition(next);
-                      audio.current.forEach((item, index) => {
-                        item.currentTime = next + (audioOffsets.current[index] || 0);
-                      });
+                      controller.current?.seek(next);
                     }}
                   />
+                  <Button
+                    variant={looping ? "default" : "outline"}
+                    aria-pressed={looping}
+                    onClick={() => {
+                      const next = !looping;
+                      controller.current?.setLoop(next);
+                      setLooping(next);
+                    }}
+                  >
+                    Loop (L)
+                  </Button>
                 </div>
+                <p className="shortcuts" aria-label="Playback shortcuts">
+                  O Original · A Automixed · D Difference · Space Play/Pause · ←/→ Seek · L Loop
+                </p>
                 <footer className="review-actions">
                   <Button
                     variant="outline"

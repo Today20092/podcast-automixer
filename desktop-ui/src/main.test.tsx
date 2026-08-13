@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./main";
+import { ComparisonAudioController } from "./comparison-audio-controller";
 
 const inputs = ["host.wav", "guest.wav"].map((path) => ({
   path,
@@ -55,6 +56,16 @@ beforeEach(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
   Object.defineProperty(window, "pywebview", { configurable: true, value: { api } });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) });
+  const node = () => ({ connect: vi.fn(), gain: { value: 0, setTargetAtTime: vi.fn() } });
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: class {
+    currentTime = 0; destination = node();
+    createDynamicsCompressor = node; createGain = node; createMediaElementSource = node;
+    resume = vi.fn(async () => undefined);
+  } });
+  Object.defineProperty(window, "Audio", { configurable: true, value: class {
+    currentTime = 0; ontimeupdate = null; onended = null;
+    pause = vi.fn(); play = vi.fn(async () => undefined);
+  } });
 });
 afterEach(cleanup);
 
@@ -167,6 +178,29 @@ describe("desktop workflow", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Render full recordings" })).toBeVisible(), { timeout: 1500 });
     expect(screen.queryByRole("button", { name: "Cancel Preview" })).not.toBeInTheDocument();
     expect(primaryActions()).toHaveLength(1);
+  });
+
+  it("shows and routes comparison shortcuts while ignoring editable controls", async () => {
+    const user = userEvent.setup();
+    const select = vi.spyOn(ComparisonAudioController.prototype, "select");
+    const toggle = vi.spyOn(ComparisonAudioController.prototype, "toggle");
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Choose recordings" }));
+    await user.click(await screen.findByRole("button", { name: "Choose Preview Range" }));
+    await user.click(screen.getByRole("button", { name: "Create Preview" }));
+    operation = "complete";
+    await screen.findByText(/O Original · A Automixed · D Difference/);
+
+    await user.keyboard("d ");
+    expect(select).toHaveBeenCalledWith("difference");
+    expect(toggle).toHaveBeenCalledTimes(1);
+
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+    await user.keyboard("a");
+    expect(select).toHaveBeenCalledTimes(1);
+    input.remove();
   });
 
   it("keeps the chosen render directory across Back and retry, and shows Cancel only while active", async () => {
