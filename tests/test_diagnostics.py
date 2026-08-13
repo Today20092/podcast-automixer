@@ -1,9 +1,29 @@
+import re
+import shutil
+import subprocess
 from contextlib import suppress
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+import pytest
+
 from podcast_automixer.desktop import DesktopBridge
 from podcast_automixer.diagnostics import DesktopDiagnostics, diagnostics_directory, redact_paths
+
+
+def test_desktop_inline_scripts_parse() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to validate the desktop renderer")
+    renderer = (
+        Path(__file__).parents[1] / "src" / "podcast_automixer" / "desktop.html"
+    ).read_text(encoding="utf-8")
+    scripts = re.findall(r"<script>([\s\S]*?)</script>", renderer)
+    assert scripts
+    for script in scripts:
+        subprocess.run(
+            [node, "--check", "-"], input=script, text=True, check=True, capture_output=True
+        )
 
 
 def test_diagnostics_use_local_app_data_and_redact_complete_paths(monkeypatch) -> None:
