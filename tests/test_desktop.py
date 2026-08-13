@@ -1,4 +1,5 @@
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from time import monotonic, sleep
 from types import SimpleNamespace
 
@@ -10,6 +11,13 @@ import podcast_automixer.desktop as desktop
 from podcast_automixer.desktop import DesktopBridge, _dialog_path, _dropped_file_paths
 from podcast_automixer.engine import AutomixEngine
 from podcast_automixer.loudness import analyze_comparison_playback
+
+
+def _valid_preview_inspection(source: Path) -> SimpleNamespace:
+    info = sf.info(source)
+    return SimpleNamespace(
+        inputs=[SimpleNamespace(frames=info.frames, samplerate=info.samplerate)], problems=[]
+    )
 
 
 def test_bridge_validates_only_wav_family_recording_sets() -> None:
@@ -69,26 +77,67 @@ def test_bridge_rejects_non_contract_and_traversal_inputs(value: object) -> None
         DesktopBridge(AutomixEngine()).inspect_recording_set(value)
 
 
-def test_preview_cleanup_removes_only_temporary_preview_artifacts(tmp_path: Path) -> None:
-    source = tmp_path / "source.wav"
-    full_render = tmp_path / "Podcast Automixer Output" / "complete.wav"
-    temporary = tmp_path / "Preview Runs" / "incomplete.bwf-tmp.wav"
-    completed_preview = tmp_path / "Preview Runs" / "complete-preview.wav"
-    source.write_bytes(b"source")
-    full_render.parent.mkdir()
-    full_render.write_bytes(b"render")
-    temporary.parent.mkdir()
-    temporary.write_bytes(b"temporary")
-    completed_preview.write_bytes(b"preview")
+def test_preview_session_path_is_app_owned_isolated_and_cleaned(tmp_path: Path) -> None:
+    first = DesktopBridge(temp_directory=tmp_path)
+    second = DesktopBridge(temp_directory=tmp_path)
 
-    bridge = DesktopBridge()
+    assert first._preview_root == tmp_path / "podcast-automixer-preview-sessions"
+    assert first._preview_session.parent == first._preview_root
+    assert first._preview_session != second._preview_session
+    assert "Preview Runs" not in str(first._preview_session)
+    assert "('" not in str(first._preview_session)
 
-    assert bridge.abandoned_preview_runs(str(tmp_path)) == {"paths": [str(temporary)]}
-    assert bridge.remove_abandoned_preview_runs(str(tmp_path)) == {"paths": [str(temporary)]}
-    assert source.exists()
-    assert full_render.exists()
-    assert completed_preview.exists()
-    assert not temporary.exists()
+    session = first._preview_session
+    first.close_session()
+    assert not session.exists()
+    assert second._preview_session.exists()
+    second.close_session()
+
+
+@pytest.mark.parametrize(
+    ("temporary", "expected"),
+    [
+        (
+            PureWindowsPath("C:/Users/Ada/AppData/Local/Temp"),
+            PureWindowsPath("C:/Users/Ada/AppData/Local/Temp/podcast-automixer-preview-sessions"),
+        ),
+        (
+            PurePosixPath("/tmp"),
+            PurePosixPath("/tmp/podcast-automixer-preview-sessions"),
+        ),
+    ],
+)
+def test_preview_root_construction_preserves_platform_path_semantics(
+    temporary: PureWindowsPath | PurePosixPath,
+    expected: PureWindowsPath | PurePosixPath,
+) -> None:
+    assert DesktopBridge._preview_root_directory(temporary) == expected
+
+
+def test_crash_recovery_removes_only_stale_positively_owned_sessions(tmp_path: Path) -> None:
+    root = tmp_path / DesktopBridge._PREVIEW_ROOT_NAME
+    stale = root / "session-stale"
+    recent = root / "session-recent"
+    unmarked = root / "session-unmarked"
+    unrelated = root / "other-folder"
+    for directory in (stale, recent, unmarked, unrelated):
+        directory.mkdir(parents=True)
+        (directory / "audio.wav").write_bytes(b"keep unless owned and stale")
+    for directory in (stale, recent):
+        marker = directory / DesktopBridge._PREVIEW_MARKER
+        marker.write_text(DesktopBridge._PREVIEW_MARKER_CONTENT, encoding="utf-8")
+    old = 1_000.0
+    os.utime(stale / DesktopBridge._PREVIEW_MARKER, (old, old))
+
+    removed = DesktopBridge._recover_stale_preview_sessions(
+        root, now=old + DesktopBridge._PREVIEW_RETENTION_SECONDS + 1
+    )
+
+    assert removed == [stale]
+    assert not stale.exists()
+    assert recent.exists()
+    assert unmarked.exists()
+    assert unrelated.exists()
 
 
 def test_desktop_shell_declares_accessible_compact_and_reduced_motion_contract() -> None:
@@ -103,6 +152,11 @@ def test_desktop_shell_declares_accessible_compact_and_reduced_motion_contract()
         'role="slider"',
     ):
         assert requirement in page
+    assert "choose_preview_directory" not in page
+    assert 'id="choose-destination"' not in page
+    assert "api.start_preview(paths,Number(startTime.value),Number(durationInput.value))" in page
+    assert 'id="export-preview"' in page
+    assert "api.export_preview()" in page
 
 
 def test_bridge_inspection_keeps_each_recording_visible_with_technical_details(
@@ -132,7 +186,8 @@ def test_bridge_runs_selected_preview_off_the_calling_thread_and_cancels(tmp_pat
     def fake_preview(_paths, _output, **kwargs):
         assert kwargs["start_seconds"] == 2.0
         assert kwargs["duration_seconds"] == 30.0
-        assert _output == tmp_path / "Preview Runs"
+        assert _output.parent == bridge._preview_session
+        assert _output.name == "run-0001"
         while True:
             kwargs["cancellation"].raise_if_cancelled()
             sleep(0.01)
@@ -140,7 +195,7 @@ def test_bridge_runs_selected_preview_off_the_calling_thread_and_cancels(tmp_pat
     class FakeEngine:
         @staticmethod
         def inspect(_paths):
-            return AutomixEngine().inspect([source])
+            return _valid_preview_inspection(source)
 
         preview = staticmethod(fake_preview)
 
@@ -148,7 +203,7 @@ def test_bridge_runs_selected_preview_off_the_calling_thread_and_cancels(tmp_pat
     sf.write(source, np.zeros(48_000 * 40, dtype=np.float32), 48_000, subtype="FLOAT")
     bridge = DesktopBridge(FakeEngine())
     bridge._last_success = {"outputs": ["previous-preview.wav"]}
-    result = bridge.start_preview([str(source)], str(tmp_path), 2.0, 30.0)
+    result = bridge.start_preview([str(source)], 2.0, 30.0)
     assert result == {"state": "running", "start_seconds": 2.0, "duration_seconds": 30.0}
     started = monotonic()
     assert bridge.cancel_preview()["state"] == "cancelling"
@@ -165,7 +220,7 @@ def test_bridge_clips_preview_range_at_recording_end(tmp_path: Path) -> None:
     class FakeEngine:
         @staticmethod
         def inspect(_paths):
-            return AutomixEngine().inspect([source])
+            return _valid_preview_inspection(source)
 
         @staticmethod
         def preview(_paths, _output, **kwargs):
@@ -177,7 +232,7 @@ def test_bridge_clips_preview_range_at_recording_end(tmp_path: Path) -> None:
             )
 
     bridge = DesktopBridge(FakeEngine())
-    result = bridge.start_preview([str(source)], str(tmp_path), 7.0, 30.0)
+    result = bridge.start_preview([str(source)], 7.0, 30.0)
     assert result["start_seconds"] == 3.0
     assert result["duration_seconds"] == 5.0
     while bridge.status()["state"] != "complete":
@@ -287,7 +342,7 @@ def test_failed_replacement_keeps_the_last_successful_preview_and_report(
     class FakeEngine:
         @staticmethod
         def inspect(_paths):
-            return AutomixEngine().inspect([source])
+            return _valid_preview_inspection(source)
 
         @staticmethod
         def preview(_paths, _output, **kwargs):
@@ -298,10 +353,10 @@ def test_failed_replacement_keeps_the_last_successful_preview_and_report(
             )
 
     bridge = DesktopBridge(FakeEngine())
-    bridge.start_preview([str(source)], str(tmp_path))
+    bridge.start_preview([str(source)])
     while bridge.status()["state"] != "complete":
         sleep(0.01)
-    bridge.start_preview([str(source)], str(tmp_path), 1.0)
+    bridge.start_preview([str(source)], 1.0)
     while bridge.status()["state"] != "failed":
         sleep(0.01)
 
@@ -313,6 +368,47 @@ def test_failed_replacement_keeps_the_last_successful_preview_and_report(
     monkeypatch.setattr(desktop.webbrowser, "open", opened.append)
     assert bridge.open_preview_mix_report()["url"] == report.as_uri()
     assert opened == [report.as_uri()]
+
+
+def test_repeated_previews_are_isolated_and_export_preserves_active_result(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 10, dtype=np.float32), 48_000, subtype="FLOAT")
+    destinations: list[Path] = []
+
+    class FakeEngine:
+        @staticmethod
+        def inspect(_paths):
+            return _valid_preview_inspection(source)
+
+        @staticmethod
+        def preview(_paths, output, **_kwargs):
+            destinations.append(output)
+            rendered = output / "voice-preview.wav"
+            report = output / "podcast-automix-report.json"
+            html_report = output / "podcast-automix-report.html"
+            rendered.write_bytes(b"audio")
+            report.write_text("{}", encoding="utf-8")
+            html_report.write_text("<html></html>", encoding="utf-8")
+            return SimpleNamespace(outputs=[rendered], report=report, html_report=html_report)
+
+    bridge = DesktopBridge(FakeEngine(), temp_directory=tmp_path / "temp")
+    for start in (0.0, 1.0):
+        bridge.start_preview([str(source)], start)
+        while bridge.status()["state"] != "complete":
+            sleep(0.01)
+
+    active_before = bridge.status()["preview_result"]
+    exported = bridge.export_preview(str(tmp_path / "exports"))
+
+    assert destinations[0] != destinations[1]
+    assert all(destination.parent == bridge._preview_session for destination in destinations)
+    assert exported["state"] == "complete"
+    export_directory = Path(exported["destination"])
+    assert (export_directory / "voice-preview.wav").read_bytes() == b"audio"
+    assert (export_directory / "podcast-automix-report.html").exists()
+    assert bridge.status()["preview_result"] == active_before
 
 
 def test_full_render_uses_a_unique_deliverable_folder_and_keeps_preview_separate(
@@ -328,7 +424,7 @@ def test_full_render_uses_a_unique_deliverable_folder_and_keeps_preview_separate
         @staticmethod
         def inspect(paths):
             inspections.append(paths)
-            return AutomixEngine().inspect([source])
+            return _valid_preview_inspection(source)
 
         @staticmethod
         def full_render(paths, destination, **kwargs):
@@ -388,7 +484,7 @@ def test_cancelled_full_render_removes_its_new_empty_destination(tmp_path: Path)
     class FakeEngine:
         @staticmethod
         def inspect(_paths):
-            return AutomixEngine().inspect([source])
+            return _valid_preview_inspection(source)
 
         @staticmethod
         def full_render(_paths, _destination, **_kwargs):

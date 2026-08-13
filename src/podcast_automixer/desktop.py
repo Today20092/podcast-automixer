@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 import webbrowser
 from contextlib import suppress
 from dataclasses import asdict
 from json import dumps
 from pathlib import Path
 from threading import Lock, Thread
-from time import monotonic
+from time import monotonic, time
 from typing import Any, cast
 
 from . import __version__
@@ -60,10 +62,22 @@ def _bind_drop_events(window: Any) -> None:
 class DesktopBridge:
     """Expose Recording Set inspection plus separate preview and full-render journeys."""
 
-    _PREVIEW_TEMPORARY_SUFFIXES = (".tmp", ".part", ".partial", ".bwf-tmp.wav")
+    _PREVIEW_ROOT_NAME = "podcast-automixer-preview-sessions"
+    _PREVIEW_SESSION_PREFIX = "session-"
+    _PREVIEW_MARKER = ".podcast-automixer-preview-session"
+    _PREVIEW_MARKER_CONTENT = "podcast-automixer-preview-session-v1\n"
+    _PREVIEW_RETENTION_SECONDS = 7 * 24 * 60 * 60
+
+    @classmethod
+    def _preview_root_directory(cls, temp_directory: Any) -> Any:
+        """Append the app-owned root without imposing host-specific path semantics."""
+        return temp_directory / cls._PREVIEW_ROOT_NAME
 
     def __init__(
-        self, engine: Any | None = None, diagnostics: DesktopDiagnostics | None = None
+        self,
+        engine: Any | None = None,
+        diagnostics: DesktopDiagnostics | None = None,
+        temp_directory: Path | None = None,
     ) -> None:
         self._engine = engine or AutomixEngine()
         self._diagnostics = diagnostics or DesktopDiagnostics(version=__version__)
@@ -75,6 +89,18 @@ class DesktopBridge:
         self._full_render_acknowledged = False
         self._waveform: dict[str, Any] = {"state": "idle"}
         self._waveform_generation = 0
+        self._preview_run_number = 0
+        self._preview_root = self._preview_root_directory(
+            temp_directory or Path(tempfile.gettempdir())
+        )
+        self._preview_root.mkdir(parents=True, exist_ok=True)
+        self._recover_stale_preview_sessions(self._preview_root)
+        self._preview_session = Path(
+            tempfile.mkdtemp(prefix=self._PREVIEW_SESSION_PREFIX, dir=self._preview_root)
+        )
+        (self._preview_session / self._PREVIEW_MARKER).write_text(
+            self._PREVIEW_MARKER_CONTENT, encoding="utf-8"
+        )
 
     def __getattribute__(self, name: str) -> Any:
         """Time every public pywebview operation and retain unexpected tracebacks."""
@@ -215,13 +241,10 @@ class DesktopBridge:
     def start_preview(
         self,
         paths: object,
-        output_directory: object,
         start_seconds: object = 0.0,
         duration_seconds: object = 30.0,
     ) -> dict[str, str | float]:
         recording_paths = self._paths(paths)
-        if not isinstance(output_directory, str) or not output_directory:
-            raise ValueError("output_directory must be a directory path")
         if not isinstance(start_seconds, (int, float)) or not isinstance(
             duration_seconds, (int, float)
         ):
@@ -237,11 +260,12 @@ class DesktopBridge:
             raise ValueError("Recording Set must be at least 5 seconds long for a Preview Run")
         start = min(max(float(start_seconds), 0.0), recording_end - 5.0)
         duration = min(float(duration_seconds), recording_end - start)
-        destination = Path(output_directory) / "Preview Runs"
-        destination.mkdir(parents=True, exist_ok=True)
         with self._lock:
             if self._status["state"] in {"running", "cancelling"}:
                 raise RuntimeError("A Preview Run is already active")
+            self._preview_run_number += 1
+            destination = self._preview_session / f"run-{self._preview_run_number:04d}"
+            destination.mkdir()
             self._token = CancellationToken()
             self._status = {"state": "running", "progress": None, "error": None}
             Thread(
@@ -275,6 +299,7 @@ class DesktopBridge:
                 "duration_seconds": duration_seconds,
                 "report": str(result.report),
                 "html_report": str(result.html_report),
+                "directory": str(destination),
             }
             with self._lock:
                 self._last_success = completed
@@ -310,42 +335,68 @@ class DesktopBridge:
                 self._token.cancel()
             return {"state": self._status["state"]}
 
-    def choose_preview_directory(self) -> str | None:
-        """Open the Desktop Shell's native destination chooser for Preview Runs."""
-        import webview
-
-        selected = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
-        return _dialog_path(selected)
+    @classmethod
+    def _is_owned_preview_session(cls, directory: Path, root: Path) -> bool:
+        """Require the expected location, name, and marker before recursive deletion."""
+        try:
+            marker = directory / cls._PREVIEW_MARKER
+            return (
+                directory.parent.resolve() == root.resolve()
+                and directory.name.startswith(cls._PREVIEW_SESSION_PREFIX)
+                and marker.is_file()
+                and marker.read_text(encoding="utf-8") == cls._PREVIEW_MARKER_CONTENT
+            )
+        except OSError:
+            return False
 
     @classmethod
-    def _abandoned_preview_files(cls, output_directory: object) -> list[Path]:
-        """Find only known incomplete files inside the disposable Preview Runs folder."""
+    def _recover_stale_preview_sessions(cls, root: Path, now: float | None = None) -> list[Path]:
+        """Remove only marked sessions older than the bounded seven-day retention window."""
+        if not root.is_dir():
+            return []
+        cutoff = (time() if now is None else now) - cls._PREVIEW_RETENTION_SECONDS
+        removed: list[Path] = []
+        for directory in root.iterdir():
+            if not cls._is_owned_preview_session(directory, root):
+                continue
+            try:
+                if (directory / cls._PREVIEW_MARKER).stat().st_mtime > cutoff:
+                    continue
+                shutil.rmtree(directory)
+                removed.append(directory)
+            except OSError:
+                continue
+        return removed
+
+    def close_session(self) -> None:
+        """Best-effort normal-exit cleanup limited to this bridge's marked session."""
+        if self._is_owned_preview_session(self._preview_session, self._preview_root):
+            with suppress(OSError):
+                shutil.rmtree(self._preview_session)
+
+    def export_preview(self, output_directory: object = None) -> dict[str, str]:
+        """Copy the latest successful Preview Run without changing the active result."""
+        with self._lock:
+            result = self._last_success.copy() if self._last_success else None
+        if not result:
+            raise ValueError("A successful Preview Run is required before exporting")
+        if output_directory is None:
+            import webview
+
+            selected = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
+            output_directory = _dialog_path(selected)
+        if output_directory is None:
+            return {"state": "cancelled"}
         if not isinstance(output_directory, str) or not output_directory:
             raise ValueError("output_directory must be a directory path")
-        preview_directory = Path(output_directory).resolve() / "Preview Runs"
-        if not preview_directory.is_dir():
-            return []
-        return [
-            path
-            for path in preview_directory.rglob("*")
-            if path.is_file()
-            and path.resolve().is_relative_to(preview_directory)
-            and path.name.lower().endswith(cls._PREVIEW_TEMPORARY_SUFFIXES)
-        ]
-
-    def abandoned_preview_runs(self, output_directory: object) -> dict[str, list[str]]:
-        """Report incomplete Preview Run artifacts without modifying any audio."""
-        return {"paths": [str(path) for path in self._abandoned_preview_files(output_directory)]}
-
-    def remove_abandoned_preview_runs(self, output_directory: object) -> dict[str, list[str]]:
-        """Remove only known temporary files under Preview Runs, never sources or Full Renders."""
-        abandoned = self._abandoned_preview_files(output_directory)
-        removed: list[str] = []
-        for path in abandoned:
-            with suppress(OSError):
-                path.unlink()
-                removed.append(str(path))
-        return {"paths": removed}
+        source = Path(result["directory"])
+        if not source.is_dir() or not source.resolve().is_relative_to(
+            self._preview_session.resolve()
+        ):
+            raise ValueError("Preview Run artifacts are unavailable")
+        destination = self._unique_directory(Path(output_directory) / "Podcast Automixer Preview")
+        shutil.copytree(source, destination)
+        return {"state": "complete", "destination": str(destination)}
 
     def choose_full_render_directory(self) -> str | None:
         """Open the native destination chooser for Full Render deliverables."""
@@ -577,8 +628,10 @@ def main() -> None:
     import webview
 
     page = Path(__file__).with_name("desktop.html")
-    window = webview.create_window("Podcast Automixer", page.as_uri(), js_api=DesktopBridge())
+    bridge = DesktopBridge()
+    window = webview.create_window("Podcast Automixer", page.as_uri(), js_api=bridge)
     assert window is not None
+    window.events.closed += bridge.close_session
     scripts = ("comparison_playback.js", "desktop_diagnostics.js")
     window.events.loaded += lambda: window.evaluate_js(
         "\n".join(
