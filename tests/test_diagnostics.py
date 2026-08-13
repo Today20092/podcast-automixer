@@ -49,5 +49,7 @@ def test_desktop_renderer_reports_javascript_failures_and_exposes_log_folder_act
     folder_action = (source / "desktop_diagnostics.js").read_text(encoding="utf-8")
     assert "unhandledrejection" in renderer
     assert "uncaught_error" in renderer
+    assert "const rawApi=window.pywebview?.api" not in renderer
+    assert "window.pywebview?.api?.[name]" in renderer
     assert "open_diagnostics_folder" in folder_action
     assert "Open diagnostics folder" in folder_action
