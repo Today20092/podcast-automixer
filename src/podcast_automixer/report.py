@@ -45,6 +45,12 @@ class Report:
                 "mean": self.gain_db.mean(axis=1).tolist(),
                 "minimum": self.gain_db.min(axis=1).tolist(),
             },
+            "diagnostic_timeline": {
+                "frame_ms": self.settings.frame_ms,
+                "speech_evidence": self.active.astype(bool).tolist(),
+                "automix_target": (self.gain_db > -0.5).tolist(),
+                "applied_gain_db": self.gain_db.tolist(),
+            },
         }
 
     def html_payload(self) -> dict[str, Any]:

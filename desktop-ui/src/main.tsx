@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import "./index.css";
 import { ComparisonReviewPrototype } from "./comparison-review.prototype";
+import { DiagnosticCanvas, type DiagnosticTimeline } from "./diagnostic-canvas";
 
 type Stage = "recordings" | "preview" | "review" | "render";
 type Theme = "system" | "light" | "dark";
@@ -85,6 +86,7 @@ type Comparison = {
   start_seconds: number;
   duration_seconds: number;
   playback_gain_db: { original: number; automixed: number };
+  diagnostic_timeline?: DiagnosticTimeline;
 };
 type WaveformStatus = { state: string; result?: { points?: [number, number][] } };
 type Destination = { unique: string };
@@ -795,6 +797,9 @@ export function App() {
                       is a monitoring view, not a deliverable.
                     </AlertDescription>
                   </Alert>
+                )}
+                {comparison?.diagnostic_timeline && (
+                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} />
                 )}
                 <div className="transport">
                   <Button

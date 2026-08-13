@@ -15,6 +15,7 @@ from time import monotonic, time
 from typing import Any, cast
 
 from . import __version__
+from .diagnostic_timeline import build_diagnostic_timeline
 from .diagnostics import DesktopDiagnostics
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 from .loudness import analyze_comparison_playback
@@ -89,6 +90,7 @@ class DesktopBridge:
         self._full_render_acknowledged = False
         self._waveform: dict[str, Any] = {"state": "idle"}
         self._waveform_generation = 0
+        self._diagnostic_timeline_cache: dict[tuple[str, float, float], dict[str, Any]] = {}
         self._preview_run_number = 0
         self._preview_root = self._preview_root_directory(
             temp_directory or Path(tempfile.gettempdir())
@@ -594,13 +596,28 @@ class DesktopBridge:
             float(start),
             float(duration),
         )
-        return {
+        report = self._last_success.get("report")
+        key = (paths[0], float(start), float(duration))
+        timeline = self._diagnostic_timeline_cache.get(key)
+        if timeline is None and isinstance(report, str):
+            timeline = build_diagnostic_timeline(
+                Path(paths[0]),
+                Path(outputs[0]),
+                Path(report),
+                float(start),
+                float(duration),
+            )
+            self._diagnostic_timeline_cache[key] = timeline
+        result = {
             "original_paths": paths,
             "automixed_paths": outputs,
             "start_seconds": start,
             "duration_seconds": duration,
             **metrics,
         }
+        if timeline is not None:
+            result["diagnostic_timeline"] = timeline
+        return result
 
     def preview_mix_report(self) -> dict[str, str]:
         """Return the latest successful Preview Run's self-contained Mix Report."""

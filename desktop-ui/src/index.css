@@ -1,5 +1,7 @@
 ﻿@import "tailwindcss";
 @import "tw-animate-css";
+
+.diagnostic-canvas { width: 100%; height: 230px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
