@@ -335,9 +335,15 @@ input {
 .comparison-playhead { position:absolute; inset-block:0; width:2px; background:var(--foreground); pointer-events:none; }
 .playback-clock { margin-top:-1rem!important; text-align:right; font-variant-numeric:tabular-nums; font-size:.82rem; }
 .diagnostics-section { display:flex; flex-direction:column; gap:1rem; padding-block:1rem; }
+.diagnostics-scroll { overflow-x:auto; padding:2px; scrollbar-gutter:stable; }
+.diagnostics-scroll:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+.diagnostics-timeline { min-width:760px; display:flex; flex-direction:column; gap:.75rem; }
+.diagnostics-empty { border:1px dashed var(--border); border-radius:.75rem; color:var(--muted-foreground); padding:1.5rem; }
 .diagnostic-lane { border:1px solid var(--border); border-radius:.75rem; padding:1rem; transition:border-color .15s, box-shadow .15s; }
 .diagnostic-lane.is-open { border-color:#34d399; box-shadow:0 0 0 1px #34d39955, 0 0 18px #34d39918; }
 .diagnostic-lane > header { display:grid; grid-template-columns:1fr auto auto; gap:1rem; align-items:center; }
+.diagnostic-lane > header strong { display:flex; align-items:center; gap:.5rem; }
+.track-swatch { width:.65rem; height:.65rem; border-radius:50%; background:var(--track-color); }
 .diagnostic-lane header span { font-size:.72rem; font-weight:750; color:var(--muted-foreground); }
 .diagnostic-lane header .open-state { color:#34d399; }
 .diagnostic-content { margin-top:.75rem; }
@@ -349,6 +355,11 @@ input {
 .diagnostic-chart { position:relative; min-width:0; margin-left:70px; }
 .diagnostic-playhead { position:absolute; inset-block:0; width:2px; background:var(--foreground); pointer-events:none; }
 .diagnostic-summary { font-size:.82rem; font-variant-numeric:tabular-nums; }
+.playhead-inspector { border:1px solid var(--border); border-radius:.75rem; padding:1rem; }
+.playhead-inspector h3 { display:flex; justify-content:space-between; margin:0 0 .75rem; font-size:1rem; }
+.playhead-inspector h3 span { color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.playhead-inspector > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.35rem 1rem; }
+.playhead-inspector p { display:grid; grid-template-columns:minmax(100px,1fr) repeat(4,auto); gap:.75rem; margin:0; padding:.45rem 0; border-top:1px solid var(--border); font-size:.78rem; }
 @media (max-width: 780px) {
   .mobile-navigation {
     display: flex;

@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 import "./index.css";
 import { ComparisonAudioController } from "./comparison-audio-controller";
-import { DiagnosticLane, type DiagnosticTrack } from "./diagnostic-lane";
+import { RecordingSetDiagnostics, type DiagnosticTrack } from "./diagnostic-lane";
 
 type Stage = "recordings" | "preview" | "review" | "render";
 type Theme = "system" | "light" | "dark";
@@ -936,10 +936,10 @@ export function App() {
                 <p className="shortcuts" aria-label="Playback shortcuts">
                   O Original · A Automixed · D Difference · Space Play/Pause · ←/→ Seek · L Loop
                 </p>
-                {comparison?.diagnostics[0] && (
+                {comparison && (
                   <div className="diagnostics-section">
-                    <div className="section-heading"><div><h2>Why this microphone changed</h2><p>Detected speech, the engine target, and its smoothed gain response share one timeline.</p></div></div>
-                    <DiagnosticLane track={comparison.diagnostics[0]} playhead={playbackPosition} />
+                    <div className="section-heading"><div><h2>Recording Set decisions + response</h2><p>Verify the right microphone is open at the right time across detected speech, engine targets, and applied gain.</p></div></div>
+                    <RecordingSetDiagnostics tracks={comparison.diagnostics} playhead={playbackPosition} />
                   </div>
                 )}
                 <footer className="review-actions">

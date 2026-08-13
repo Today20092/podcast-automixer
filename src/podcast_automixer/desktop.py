@@ -620,6 +620,8 @@ class DesktopBridge:
         if analysis is None or analysis.detected_speech is None or analysis.target_open is None:
             return []
         gain_db = 20.0 * np.log10(np.maximum(analysis.gains, np.finfo(float).tiny))
+        from .report import TRACK_COLORS
+
         diagnostics = []
         for channel, path in enumerate(paths):
             frames = []
@@ -640,7 +642,12 @@ class DesktopBridge:
                         "response": response,
                     }
                 )
-            diagnostics.append({"name": path.stem, "frames": frames})
+            diagnostics.append({
+                "id": f"track-{channel + 1}",
+                "name": path.stem,
+                "color": TRACK_COLORS[channel % len(TRACK_COLORS)],
+                "frames": frames,
+            })
         return diagnostics
 
     def preview_mix_report(self) -> dict[str, str]:

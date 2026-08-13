@@ -11,6 +11,11 @@ import numpy as np
 
 from .core import AudioInfo, Settings
 
+TRACK_COLORS = (
+    "#3b82f6", "#f59e0b", "#10b981", "#ef4444",
+    "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
+)
+
 
 @dataclass(frozen=True)
 class Report:
@@ -48,16 +53,6 @@ class Report:
         }
 
     def html_payload(self) -> dict[str, Any]:
-        colors = (
-            "#3b82f6",
-            "#f59e0b",
-            "#10b981",
-            "#ef4444",
-            "#8b5cf6",
-            "#06b6d4",
-            "#ec4899",
-            "#84cc16",
-        )
         return {
             "attenuationDb": self.settings.attenuation_db,
             "openingTimeConstantMs": self.settings.open_ms,
@@ -73,7 +68,7 @@ class Report:
                     "calibration": float(self.analysis["calibration_db"][index]),
                     "noiseFloor": float(self.analysis["noise_floor_db"][index]),
                     "minimumGain": float(self.gain_db[index].min()),
-                    "color": colors[index % len(colors)],
+                    "color": TRACK_COLORS[index % len(TRACK_COLORS)],
                 }
                 for index, info in enumerate(self.infos)
             ],

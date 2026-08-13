@@ -265,6 +265,29 @@ def test_comparison_diagnostics_serialize_coherent_engine_frames() -> None:
     assert track["frames"][1]["gain_db"] == pytest.approx(20 * np.log10(0.8))
 
 
+def test_comparison_diagnostics_preserve_recording_order_and_report_colors() -> None:
+    track_count = 8
+    analysis = SimpleNamespace(
+        gains=np.ones((track_count, 1), dtype=np.float32),
+        detected_speech=np.ones((track_count, 1), dtype=bool),
+        target_open=np.ones((track_count, 1), dtype=bool),
+        attenuation_db=-24.0,
+        frame_ms=20,
+    )
+    paths = [Path(f"mic-{index}.wav") for index in range(track_count, 0, -1)]
+
+    diagnostics = DesktopBridge._comparison_diagnostics(SimpleNamespace(analysis=analysis), paths)
+
+    assert [track["name"] for track in diagnostics] == [path.stem for path in paths]
+    assert [track["id"] for track in diagnostics] == [f"track-{index}" for index in range(1, 9)]
+    assert len({track["color"] for track in diagnostics}) == 8
+
+
+@pytest.mark.parametrize("analysis", [None, SimpleNamespace(detected_speech=None, target_open=None)])
+def test_comparison_diagnostics_handle_missing_analysis(analysis: object | None) -> None:
+    assert DesktopBridge._comparison_diagnostics(SimpleNamespace(analysis=analysis), [Path("mic.wav")]) == []
+
+
 def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: Path) -> None:
     original = tmp_path / "original.wav"
     rendered = tmp_path / "rendered.wav"
