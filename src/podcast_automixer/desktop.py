@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 from threading import Lock, Thread
-from typing import Any
+from typing import Any, cast
 
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 
@@ -33,14 +33,35 @@ class DesktopBridge:
         return paths
 
     def inspect_recording_set(self, paths: object) -> dict[str, Any]:
-        inspection = self._engine.inspect(self._paths(paths))
+        recording_paths = self._paths(paths)
+        individual = [self._engine.inspect([path]) for path in recording_paths]
+        inspection = self._engine.inspect(recording_paths)
         return {
             "inputs": [
-                {"path": str(info.path), "samplerate": info.samplerate, "frames": info.frames}
-                for info in inspection.inputs
+                {
+                    "path": str(path),
+                    "samplerate": item.inputs[0].samplerate if item.inputs else None,
+                    "frames": item.inputs[0].frames if item.inputs else None,
+                    "channels": item.inputs[0].channels if item.inputs else None,
+                    "subtype": item.inputs[0].subtype if item.inputs else None,
+                    "format": item.inputs[0].format if item.inputs else None,
+                    "problems": [asdict(problem) for problem in item.problems],
+                }
+                for path, item in zip(recording_paths, individual, strict=True)
             ],
             "problems": [asdict(problem) for problem in inspection.problems],
         }
+
+    def choose_recordings(self) -> list[str]:
+        """Open the Desktop Shell's native multi-file chooser."""
+        import webview
+
+        selected = webview.windows[0].create_file_dialog(
+            cast(int, webview.OPEN_DIALOG),
+            allow_multiple=True,
+            file_types=("Wave audio (*.wav;*.wave;*.rf64)",),
+        )
+        return list(selected or [])
 
     def start_preview(self, paths: object, output_directory: object) -> dict[str, str]:
         recording_paths = self._paths(paths)
