@@ -56,9 +56,9 @@ def _prompt_paths() -> list[Path]:
     while True:
         raw = Prompt.ask(f"WAV file {len(paths) + 1} (Enter when done)")
         if not raw.strip():
-            if len(paths) >= 2:
+            if paths:
                 return paths
-            console.print("[bold red]Error:[/bold red] At least two WAV files are required.")
+            console.print("[bold red]Error:[/bold red] At least one WAV file is required.")
             continue
         try:
             paths.append(_path(normalize_interactive_path(raw)))

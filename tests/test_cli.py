@@ -59,6 +59,13 @@ def test_prompt_paths_retries_and_collects_until_blank(monkeypatch: pytest.Monke
     ]
 
 
+def test_prompt_paths_accepts_one_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers = iter(['"voiceover.wav"', ""])
+    monkeypatch.setattr(cli.Prompt, "ask", lambda _prompt: next(answers))
+
+    assert [path.name for path in cli._prompt_paths()] == ["voiceover.wav"]
+
+
 def test_direct_cli_path_is_not_reparsed(monkeypatch: pytest.MonkeyPatch) -> None:
     raw = "literal ` 'quoted' path.wav"
     parsed = cli.parser().parse_args([raw])

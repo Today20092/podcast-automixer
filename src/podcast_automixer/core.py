@@ -66,8 +66,8 @@ class AnalysisResult:
 
 
 def inspect_inputs(paths: list[Path]) -> list[AudioInfo]:
-    if len(paths) < 2:
-        raise AutomixError("At least two WAV files are required.")
+    if not paths:
+        raise AutomixError("At least one WAV file is required.")
     infos: list[AudioInfo] = []
     for path in paths:
         if not path.is_file():
