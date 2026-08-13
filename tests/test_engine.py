@@ -19,6 +19,16 @@ def test_inspection_returns_structured_problem_for_invalid_recording_set(tmp_pat
     assert "File not found" in inspection.problems[0].message
 
 
+def test_inspection_returns_structured_problem_for_unreadable_wav(tmp_path: Path) -> None:
+    unreadable = tmp_path / "corrupt.wav"
+    unreadable.write_bytes(b"not audio")
+
+    inspection = AutomixEngine().inspect([unreadable])
+
+    assert inspection.inputs == []
+    assert inspection.problems[0].code == "invalid_recording_set"
+
+
 def test_preview_uses_explicit_destination_and_stable_progress(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -46,8 +56,7 @@ def test_full_render_honors_cooperative_cancellation(
 
     def fake_run(_request, **kwargs):
         token.cancel()
-        kwargs["progress"]("Rendering", 1, 1, 2)
-        raise AssertionError("cancellation should stop work")
+        kwargs["check_cancelled"]()
 
     with pytest.raises(AutomixCancelled):
         AutomixEngine(fake_run).full_render([tmp_path / "source.wav"], tmp_path, cancellation=token)

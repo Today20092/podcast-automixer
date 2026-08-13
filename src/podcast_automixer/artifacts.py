@@ -34,8 +34,7 @@ class RenderedAudioArtifacts:
     ) -> RenderedAudioArtifacts:
         suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
         paths = [
-            (output_directory or info.path.parent) / f"{info.path.stem}{suffix}"
-            for info in infos
+            (output_directory or info.path.parent) / f"{info.path.stem}{suffix}" for info in infos
         ]
         collisions = [path for path in paths if path.exists()]
         if collisions and not overwrite:

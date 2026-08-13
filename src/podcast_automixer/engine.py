@@ -68,7 +68,7 @@ class AutomixEngine:
     def inspect(self, paths: list[Path]) -> RecordingSetInspection:
         try:
             return RecordingSetInspection(inspect_inputs(paths), [])
-        except AutomixError as exc:
+        except (AutomixError, OSError, RuntimeError) as exc:
             problem = ValidationProblem("invalid_recording_set", str(exc))
             return RecordingSetInspection([], [problem])
 
@@ -85,7 +85,10 @@ class AutomixEngine:
     ) -> RunResult:
         return self._run(
             RunRequest(
-                paths, settings, preview_start=start_seconds, preview_duration=duration_seconds,
+                paths,
+                settings,
+                preview_start=start_seconds,
+                preview_duration=duration_seconds,
                 output_directory=output_directory,
             ),
             progress,
@@ -141,6 +144,7 @@ class AutomixEngine:
         return self._runner(
             request,
             progress=emit,
+            check_cancelled=cancellation.raise_if_cancelled if cancellation else None,
             confirm_overwrite=confirm_overwrite,
             inputs_ready=inputs_ready,
         )

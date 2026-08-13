@@ -17,6 +17,7 @@ from .loudness import analyze_rendered_loudness
 from .report import Report, write_diagnostics, write_html_report, write_json_report
 
 InputsReadyCallback = Callable[[list[AudioInfo]], None]
+CancellationCheck = Callable[[], None]
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ def run_automix(
     request: RunRequest,
     *,
     progress: ProgressCallback | None = None,
+    check_cancelled: CancellationCheck | None = None,
     confirm_overwrite: OverwriteConfirmation | None = None,
     inputs_ready: InputsReadyCallback | None = None,
 ) -> RunResult:
@@ -82,6 +84,8 @@ def run_automix(
 
     try:
         analysis = analyze(infos, request.settings, start, count, progress=progress)
+        if check_cancelled:
+            check_cancelled()
         rendered = rendered_audio.render(
             analysis.gains,
             request.settings,
@@ -89,10 +93,14 @@ def run_automix(
             count,
             progress=progress,
         )
+        if check_cancelled:
+            check_cancelled()
         analysis_report = {
             **analysis.report_values,
             "loudness": analyze_rendered_loudness(rendered, progress=progress),
         }
+        if check_cancelled:
+            check_cancelled()
         report_model = Report(
             infos,
             request.settings,
@@ -100,9 +108,15 @@ def run_automix(
             analysis.active,
             analysis_report,
         )
+        if check_cancelled:
+            check_cancelled()
         write_json_report(report, report_model)
+        if check_cancelled:
+            check_cancelled()
         write_html_report(html_report, report_model)
         if diagnostics:
+            if check_cancelled:
+                check_cancelled()
             write_diagnostics(diagnostics, report_model)
     except (Exception, KeyboardInterrupt):
         for artifact in absent_before_run:
