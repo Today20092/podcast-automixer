@@ -16,6 +16,7 @@ from . import __version__
 from .diagnostics import DesktopDiagnostics
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 from .loudness import analyze_comparison_playback
+from .waveform import analyze_monitoring_waveform
 
 
 def _dropped_file_paths(event: object) -> list[str]:
@@ -72,6 +73,8 @@ class DesktopBridge:
         self._last_success: dict[str, Any] | None = None
         self._last_full_render: dict[str, Any] | None = None
         self._full_render_acknowledged = False
+        self._waveform: dict[str, Any] = {"state": "idle"}
+        self._waveform_generation = 0
 
     def __getattribute__(self, name: str) -> Any:
         """Time every public pywebview operation and retain unexpected tracebacks."""
@@ -168,6 +171,35 @@ class DesktopBridge:
             ],
             "problems": [asdict(problem) for problem in inspection.problems],
         }
+
+    def start_waveform_overview(self, paths: object) -> dict[str, str]:
+        """Analyze the bounded overview on a worker, never on the bridge caller's thread."""
+        recording_paths = self._paths(paths)
+        inspection = self._engine.inspect(recording_paths)
+        if inspection.problems or not inspection.inputs:
+            raise ValueError("Recording Set must be valid before creating its waveform")
+        with self._lock:
+            self._waveform_generation += 1
+            generation = self._waveform_generation
+            self._waveform = {"state": "loading"}
+        Thread(
+            target=self._analyze_waveform, args=(recording_paths, generation), daemon=True
+        ).start()
+        return {"state": "loading"}
+
+    def _analyze_waveform(self, paths: list[Path], generation: int) -> None:
+        try:
+            result = analyze_monitoring_waveform(paths)
+            waveform = {"state": "complete", "result": result}
+        except Exception:
+            waveform = {"state": "unavailable"}
+        with self._lock:
+            if generation == self._waveform_generation:
+                self._waveform = waveform
+
+    def waveform_overview_status(self) -> dict[str, Any]:
+        with self._lock:
+            return self._waveform.copy()
 
     def choose_recordings(self) -> list[str]:
         """Open the Desktop Shell's native multi-file chooser."""
