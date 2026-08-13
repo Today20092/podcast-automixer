@@ -12,7 +12,7 @@ export type DiagnosticDomains = { duration: number; minimumDb: number };
 export type ReviewKind = "speaking-attenuated" | "silent-open" | "rapid-switch" | "multiple-active" | "no-clear-owner";
 export type ReviewMoment = { seconds: number; kind: ReviewKind; label: string; trackIds: string[]; flagged: boolean };
 
-const fallbackColors = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+const fallbackColors = ["#ffb84d", "#6fa5ff", "#a981ff", "#5dd8aa", "#ff718b", "#58cee5", "#ec4899", "#84cc16"];
 export const responseText = { open: "At open target", closing: "Closing", attenuated: "At attenuation target", opening: "Opening" };
 
 export function frameAt(track: DiagnosticTrack, playhead: number) {
@@ -64,7 +64,7 @@ export function DiagnosticLane({ track, playhead, domains, index = 0, collapsed,
   const color = track.color || fallbackColors[index % fallbackColors.length];
   const definition = React.useMemo(() => defineChart({
     marks: [
-      areaY(track.frames, { x: "seconds", y1: "gain_db", y2: () => 0, fill: color, fillOpacity: 0.38 }),
+      areaY(track.frames, { x: "seconds", y1: "gain_db", y2: () => 0, fill: color, fillOpacity: 0.48 }),
       lineY(track.frames, { x: "seconds", y: "gain_db", stroke: color, strokeWidth: 1.5 }),
     ],
     x: { scale: scaleLinear([0, domains.duration], [0, 1]), axis: false },
@@ -74,15 +74,21 @@ export function DiagnosticLane({ track, playhead, domains, index = 0, collapsed,
   if (!current) return null;
   const facts = `${current.speech ? "Speaking" : "Silent"} · ${current.target_open ? "Open target" : "Attenuate target"} · ${current.gain_db.toFixed(1)} dB · ${responseText[current.response]}`;
   return <section className={`diagnostic-lane ${current.target_open ? "is-open" : ""} ${collapsed ? "is-collapsed" : ""}`} style={{ "--track-color": color } as React.CSSProperties} aria-label={`${track.name} automix explanation`}>
-    <header><strong><i className="track-swatch" />{track.name}</strong><span className={current.target_open ? "open-state" : ""}>{current.target_open ? "OPEN" : "ATTENUATE"}</span><b>{current.gain_db.toFixed(1)} dB</b><button type="button" aria-pressed={soloed} aria-label={`${soloed ? "Stop soloing" : "Solo"} ${track.name}`} onClick={onSolo}>{soloed ? "Soloed" : "Solo"}</button><button type="button" aria-expanded={!collapsed} aria-label={`${collapsed ? "Expand" : "Collapse"} ${track.name} lane`} onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button></header>
+    <header>
+      <strong><i className="track-swatch" />{track.name}</strong>
+      <button className="lane-solo" type="button" aria-pressed={soloed} aria-label={`${soloed ? "Stop soloing" : "Solo"} ${track.name}`} onClick={onSolo}>S</button>
+      <span className={current.target_open ? "open-state" : ""}>{current.target_open ? "OPEN" : "ATTENUATE"}</span>
+      <b>{current.gain_db.toFixed(1)} dB</b>
+      <button className="lane-collapse" type="button" aria-expanded={!collapsed} aria-label={`${collapsed ? "Expand" : "Collapse"} ${track.name} lane`} onClick={onCollapse}>{collapsed ? "+" : "−"}</button>
+    </header>
     {!collapsed && <div className="diagnostic-content">
       <div className="diagnostic-strips">
         <span>SPEECH</span><div aria-label={`${track.name} detected speech timeline`}>{track.frames.map((frame, frameIndex) => <i key={`s-${frameIndex}`} className={frame.speech ? "speech-on" : ""} title={frame.speech ? "Speech detected" : "No speech"} />)}</div>
         <span>TARGET</span><div aria-label={`${track.name} Automix target timeline`}>{track.frames.map((frame, frameIndex) => <i key={`t-${frameIndex}`} className={frame.target_open ? "target-open" : ""} title={frame.target_open ? "Open target" : "Attenuate target"} />)}</div>
       </div>
-      <div className="diagnostic-chart" data-domain={`${domains.minimumDb.toFixed(0)} to 0 dB; 0 to ${domains.duration}s`}><Chart definition={definition} height={120} ariaLabel={`${track.name} applied gain in decibels`} /><i className="diagnostic-playhead" style={{ left: `${Math.min(100, Math.max(0, playhead / domains.duration * 100))}%` }} /></div>
+      <div className="diagnostic-chart" data-domain={`${domains.minimumDb.toFixed(0)} to 0 dB; 0 to ${domains.duration}s`}><Chart definition={definition} height={84} ariaLabel={`${track.name} applied gain in decibels`} /><i className="diagnostic-playhead" style={{ left: `${Math.min(100, Math.max(0, playhead / domains.duration * 100))}%` }} /></div>
     </div>}
-    {!collapsed && <p className="diagnostic-summary" aria-live="polite">{facts}</p>}
+    {!collapsed && <p className="diagnostic-summary sr-only" aria-live="polite">{facts}</p>}
   </section>;
 }
 
@@ -97,12 +103,19 @@ export function RecordingSetDiagnostics({ tracks, playhead, onSeek, onSolo }: { 
   const visible = tracks.filter((track) => filter === "all" || (filter === "active" ? frameAt(track, playhead)?.target_open : flaggedIds.has(track.id || track.name)));
   return <div className="diagnostics-scroll" tabIndex={0} aria-label="Recording Set diagnostic timeline; scroll horizontally at constrained widths">
     <div className="diagnostics-timeline">
-      <section className="review-moments" aria-label="Review Moments"><header><div><h3>Review Moments</h3><p>Potential problems are flagged. Multiple-active and no-clear-owner moments are context, not automatic failures.</p></div><div className="diagnostic-filters" role="group" aria-label="Microphone lane filter">{(["all", "active", "flagged"] as const).map((value) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{value === "all" ? "All" : value === "active" ? "Active now" : "Flagged"}</button>)}</div></header><div>{moments.map((moment, index) => <button type="button" className={moment.flagged ? "is-flagged" : "is-context"} key={`${moment.kind}-${moment.seconds}-${index}`} aria-label={`${moment.label} at ${moment.seconds.toFixed(1)} seconds${moment.flagged ? ", flagged" : ", context only"}`} onClick={() => onSeek?.(Math.max(0, moment.seconds - 1))}><strong>{moment.label}</strong><span>{moment.seconds.toFixed(1)}s · {moment.flagged ? "Check" : "Context"}</span></button>)}</div></section>
-      {visible.length ? visible.map((track, index) => { const id = track.id || track.name; return <DiagnosticLane key={id} track={track} playhead={playhead} domains={domains} index={tracks.indexOf(track)} collapsed={collapsed.has(id)} soloed={solo === id} onCollapse={() => setCollapsed((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; })} onSolo={() => { const next = solo === id ? null : id; setSolo(next); onSolo?.(next === null ? null : tracks.indexOf(track)); }} />; }) : <p role="status">No microphones match this filter.</p>}
-      <section className="playhead-inspector" aria-label="Playhead Inspector">
-        <h3>Playhead Inspector <span>{playhead.toFixed(1)}s</span></h3>
-        <div>{tracks.map((track, index) => { const frame = frameAt(track, playhead); if (!frame) return null; return <p key={track.id || `${track.name}-${index}`}><strong>{track.name}</strong><span>{frame.speech ? "Speaking" : "Silent"}</span><span>{frame.target_open ? "Open" : "Attenuate"}</span><span>{frame.gain_db.toFixed(1)} dB</span><span>{responseText[frame.response]}</span></p>; })}</div>
-      </section>
+      <header className="diagnostic-heading">
+        <div><small>AUTOMIX DECISIONS</small><h2>Decision + response timeline</h2></div>
+        <div className="diagnostic-filters" role="group" aria-label="Microphone lane filter">{(["all", "active", "flagged"] as const).map((value) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{value === "all" ? "All" : value === "active" ? "Active now" : "Flagged"}</button>)}</div>
+      </header>
+      <div className="diagnostic-key" aria-label="Timeline legend"><span><i className="speech-key" />Detected speech</span><span><i className="open-key" />Target open</span><span><i className="attenuate-key" />Target attenuate</span><span><i className="gain-key" />Actual gain</span></div>
+      <div className="diagnostic-layout">
+        <div className="diagnostic-tracks">{visible.length ? visible.map((track) => { const id = track.id || track.name; return <DiagnosticLane key={id} track={track} playhead={playhead} domains={domains} index={tracks.indexOf(track)} collapsed={collapsed.has(id)} soloed={solo === id} onCollapse={() => setCollapsed((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; })} onSolo={() => { const next = solo === id ? null : id; setSolo(next); onSolo?.(next === null ? null : tracks.indexOf(track)); }} />; }) : <p role="status">No microphones match this filter.</p>}</div>
+        <section className="playhead-inspector" aria-label="Playhead Inspector">
+          <small>AT {playhead.toFixed(1)}s</small><h3>Playhead inspector</h3>
+          <div>{tracks.map((track, index) => { const frame = frameAt(track, playhead); if (!frame) return null; return <p style={{ "--track-color": track.color || fallbackColors[index % fallbackColors.length] } as React.CSSProperties} key={track.id || `${track.name}-${index}`}><strong><i />{track.name}</strong><b>{frame.gain_db.toFixed(1)} dB</b><span>{frame.speech ? "Speaking" : "Silent"} · {frame.target_open ? "Open target" : "Attenuate target"}</span><em>{responseText[frame.response]}</em></p>; })}</div>
+        </section>
+      </div>
+      <section className="review-moments" aria-label="Review Moments"><h3>Review moments</h3><div>{moments.map((moment, index) => <button type="button" className={moment.flagged ? "is-flagged" : "is-context"} key={`${moment.kind}-${moment.seconds}-${index}`} aria-label={`${moment.label} at ${moment.seconds.toFixed(1)} seconds${moment.flagged ? ", flagged" : ", context only"}`} onClick={() => onSeek?.(Math.max(0, moment.seconds - 1))}><span>{moment.seconds.toFixed(0)}s</span><strong>{moment.label}</strong><em className="sr-only">{moment.flagged ? "Check" : "Context only"}</em></button>)}</div><p className="sr-only">Potential problems are flagged. Multiple-active and no-clear-owner moments are context, not automatic failures.</p></section>
     </div>
   </div>;
 }

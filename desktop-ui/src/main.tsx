@@ -938,7 +938,6 @@ export function App() {
                 </p>
                 {comparison && (
                   <div className="diagnostics-section">
-                    <div className="section-heading"><div><h2>Recording Set decisions + response</h2><p>Verify the right microphone is open at the right time across detected speech, engine targets, and applied gain.</p></div></div>
                     <RecordingSetDiagnostics tracks={comparison.diagnostics} playhead={playbackPosition} onSeek={(next) => controller.current?.seek(next)} onSolo={(index) => controller.current?.setSolo(index)} />
                   </div>
                 )}
