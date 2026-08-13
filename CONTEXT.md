@@ -28,6 +28,18 @@ _Avoid_: Diagnostics page, analytics dashboard
 Loudness-matched playback that switches between the original and automixed versions at the same position so the Podcast Editor can judge the processing rather than a volume difference.
 _Avoid_: A/B test, before-and-after files
 
+**Comparison Program**:
+One of the three synchronized listening views available during Comparison Playback: Original, Automixed, or Difference.
+_Avoid_: Track, file, mode
+
+**Comparison Waveform**:
+The synchronized visual overview of Original and Automixed audio used for seeking and following Comparison Playback. Difference is shown as its own centered waveform.
+_Avoid_: Progress bar, scrubber
+
+**Gain Reduction Timeline**:
+Aligned per-microphone views of the attenuation applied by the Automix Engine over the same episode clock and decibel scale.
+_Avoid_: Compression curve, volume waveform
+
 **Monitoring Mix**:
 The equal combination of the original microphone recordings used only for Comparison Playback, with anti-clipping protection and playback loudness matching but no change to source files.
 _Avoid_: Original render, raw mix
@@ -43,3 +55,23 @@ _Avoid_: GUI, frontend wrapper
 **Safe Defaults**:
 The standard mixing choices intended to produce a useful Preview Run without requiring the Podcast Editor to understand advanced audio parameters.
 _Avoid_: Basic mode, beginner settings
+
+**Guided CLI**:
+The human-oriented command-line surface that guides a Podcast Editor through an Automix Engine run with readable prompts, progress, and results.
+_Avoid_: Interactive mode, terminal UI
+
+**Automation Contract**:
+The versioned command-line surface for scripts and external tools, with deterministic noninteractive behavior, machine-readable results, and stable exit semantics.
+_Avoid_: JSON mode, headless mode, API
+
+**Automation Result**:
+The single machine-readable account of an Automation Contract run, covering its outcome, effective choices, warnings, errors, and produced artifacts.
+_Avoid_: Console output, JSON report, response
+
+**Automix Configuration**:
+A versioned, reusable set of Automix Engine choices that can reproduce mixing behavior across Recording Sets without carrying run-specific recordings or destinations.
+_Avoid_: Preset, profile, project file
+
+**Artifact Set**:
+The processed microphone recordings, Mix Reports, and optional diagnostics produced together by one successful run.
+_Avoid_: Output files, export bundle

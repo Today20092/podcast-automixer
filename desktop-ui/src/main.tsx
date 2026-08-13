@@ -50,6 +50,7 @@ import {
   X,
 } from "lucide-react";
 import "./index.css";
+import { ComparisonReviewPrototype } from "./comparison-review.prototype";
 
 type Stage = "recordings" | "preview" | "review" | "render";
 type Theme = "system" | "light" | "dark";
@@ -238,7 +239,8 @@ function Waveform({
 }
 
 export function App() {
-  const [stage, setStage] = useState<Stage>("recordings"),
+  const prototypeVariant = import.meta.env.DEV && new URLSearchParams(location.search).has("variant");
+  const [stage, setStage] = useState<Stage>(prototypeVariant ? "review" : "recordings"),
     [theme, setTheme] = useState<Theme>("system"),
     [paths, setPaths] = useState<string[]>([]),
     [inspection, setInspection] = useState<Inspection | null>(null),
@@ -756,7 +758,7 @@ export function App() {
                 </footer>
               </section>
             )}
-            {stage === "review" && (
+            {stage === "review" && (prototypeVariant ? <ComparisonReviewPrototype /> : (
               <section className="surface review">
                 <div className="section-heading">
                   <div>
@@ -853,7 +855,7 @@ export function App() {
                   <Button data-primary-action onClick={openRender}>Render full recordings</Button>
                 </footer>
               </section>
-            )}
+            ))}
             {stage === "render" && (
               <section className="surface">
                 <div className="section-heading">
