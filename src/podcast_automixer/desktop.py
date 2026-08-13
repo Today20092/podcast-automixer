@@ -6,12 +6,42 @@ import os
 import webbrowser
 from contextlib import suppress
 from dataclasses import asdict
+from json import dumps
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, cast
 
 from .engine import AutomixCancelled, AutomixEngine, AutomixEvent, CancellationToken
 from .loudness import analyze_comparison_playback
+
+
+def _dropped_file_paths(event: object) -> list[str]:
+    """Extract unique paths supplied by pywebview's native drop event."""
+    if not isinstance(event, dict):
+        return []
+    transfer = event.get("dataTransfer") or event.get("domTransfer")
+    if not isinstance(transfer, dict) or not isinstance(transfer.get("files"), list):
+        return []
+    paths: list[str] = []
+    for file in transfer["files"]:
+        path = file.get("pywebviewFullPath") if isinstance(file, dict) else None
+        if isinstance(path, str) and path and path not in paths:
+            paths.append(path)
+    return paths
+
+
+def _bind_drop_events(window: Any) -> None:
+    """Use pywebview DOM events so Explorer drops retain native file paths."""
+    from webview.dom import DOMEventHandler
+
+    def on_drop(event: object) -> None:
+        window.evaluate_js(f"window.receiveDroppedPaths({dumps(_dropped_file_paths(event))})")
+
+    options = dict(prevent_default=True, stop_propagation=True, stop_immediate_propagation=True)
+    window.dom.document.events.dragover += DOMEventHandler(
+        lambda _event: None, debounce=500, **options
+    )
+    window.dom.document.events.drop += DOMEventHandler(on_drop, **options)
 
 
 class DesktopBridge:
@@ -454,4 +484,4 @@ def main() -> None:
     assert window is not None
     script = Path(__file__).with_name("comparison_playback.js")
     window.events.loaded += lambda: window.evaluate_js(script.read_text(encoding="utf-8"))
-    webview.start()
+    webview.start(_bind_drop_events, (window,))

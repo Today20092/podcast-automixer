@@ -7,13 +7,43 @@ import pytest
 import soundfile as sf
 
 import podcast_automixer.desktop as desktop
-from podcast_automixer.desktop import DesktopBridge
+from podcast_automixer.desktop import DesktopBridge, _dropped_file_paths
 from podcast_automixer.engine import AutomixEngine
 
 
 def test_bridge_validates_only_wav_family_recording_sets() -> None:
     with pytest.raises(ValueError, match="WAV-family"):
         DesktopBridge(AutomixEngine()).inspect_recording_set(["voice.mp3"])
+
+
+def test_native_drop_paths_require_resolved_paths_and_remove_duplicates() -> None:
+    assert _dropped_file_paths(
+        {
+            "dataTransfer": {
+                "files": [
+                    {"pywebviewFullPath": r"C:\\Recordings\\host.wav"},
+                    {"pywebviewFullPath": r"C:\\Recordings\\guest.wav"},
+                    {"pywebviewFullPath": r"C:\\Recordings\\host.wav"},
+                    {"name": "unresolved.wav"},
+                ]
+            }
+        }
+    ) == [r"C:\\Recordings\\host.wav", r"C:\\Recordings\\guest.wav"]
+    assert _dropped_file_paths({"dataTransfer": {"files": [{"name": "voice.wav"}]}}) == []
+
+
+def test_desktop_drop_boundary_uses_pywebview_paths_and_rejects_bad_recordings() -> None:
+    page = (Path(desktop.__file__).parent / "desktop.html").read_text(encoding="utf-8")
+
+    assert "window.receiveDroppedPaths=next=>add(next)" in page
+    assert "file.path" not in page
+    assert "Checking recordings" in page
+    assert "Could not resolve a file path" in page
+
+    bridge = Path(desktop.__file__).read_text(encoding="utf-8")
+    assert "pywebviewFullPath" in bridge
+    assert "prevent_default=True" in bridge
+    assert "stop_propagation=True" in bridge
 
 
 @pytest.mark.parametrize("value", ["__import__('os').system('whoami')", ["../source.wav"]])
