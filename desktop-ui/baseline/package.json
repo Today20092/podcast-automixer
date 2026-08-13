@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "baseline": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.54.2"
+  }
+}
