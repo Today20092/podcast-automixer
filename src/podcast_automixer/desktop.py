@@ -627,12 +627,12 @@ def main() -> None:
     """Launch the packaged desktop shell only when pywebview is available."""
     import webview
 
-    page = Path(__file__).with_name("desktop.html")
+    page = Path(__file__).with_name("desktop-ui") / "index.html"
     bridge = DesktopBridge()
     window = webview.create_window("Podcast Automixer", page.as_uri(), js_api=bridge)
     assert window is not None
     window.events.closed += bridge.close_session
-    scripts = ("comparison_playback.js", "desktop_diagnostics.js")
+    scripts = ("desktop_diagnostics.js",)
     window.events.loaded += lambda: window.evaluate_js(
         "\n".join(
             Path(__file__).with_name(script).read_text(encoding="utf-8") for script in scripts
