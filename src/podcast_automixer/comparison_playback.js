@@ -8,6 +8,7 @@
   const select = next => { program = next; audio.forEach(item => item.muted = item.dataset.program !== next); document.querySelectorAll('[data-program]').forEach(button => button.classList.toggle('primary', button.dataset.program === next)); };
   const load = async () => {
     const comparison = await window.pywebview.api.comparison_playback();
+    audio.forEach(item => { item.pause(); item.src = ''; });
     duration = comparison.duration_seconds;
     const gain = comparison.playback_gain_db;
     const make = (paths, name, offset) => paths.map(path => { const item = new Audio(`file:///${path.replaceAll('\\', '/')}`); item.dataset.program = name; item.dataset.gain = Math.pow(10, gain[name] / 20) / paths.length; item.volume = item.dataset.gain; item.currentTime = offset; item.addEventListener('ended', () => play.textContent = 'Play'); return item; });

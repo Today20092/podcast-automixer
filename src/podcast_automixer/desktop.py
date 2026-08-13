@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import webbrowser
 from dataclasses import asdict
 from pathlib import Path
 from threading import Lock, Thread
@@ -19,6 +20,7 @@ class DesktopBridge:
         self._lock = Lock()
         self._token: CancellationToken | None = None
         self._status: dict[str, Any] = {"state": "idle", "progress": None, "error": None}
+        self._last_success: dict[str, Any] | None = None
 
     @staticmethod
     def _paths(value: object) -> list[Path]:
@@ -120,15 +122,20 @@ class DesktopBridge:
                 progress=self._progress,
                 cancellation=token,
             )
+            completed = {
+                "outputs": [str(path) for path in result.outputs],
+                "paths": [str(path) for path in paths],
+                "start_seconds": start_seconds,
+                "duration_seconds": duration_seconds,
+                "report": str(result.report),
+                "html_report": str(result.html_report),
+            }
             with self._lock:
+                self._last_success = completed
                 self._status = {
                     "state": "complete",
                     "progress": self._status["progress"],
                     "error": None,
-                    "outputs": [str(path) for path in result.outputs],
-                    "paths": [str(path) for path in paths],
-                    "start_seconds": start_seconds,
-                    "duration_seconds": duration_seconds,
                 }
         except AutomixCancelled:
             with self._lock:
@@ -161,17 +168,20 @@ class DesktopBridge:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
-            return self._status.copy()
+            status = self._status.copy()
+            if self._last_success:
+                status["result"] = self._last_success.copy()
+            return status
 
     def comparison_playback(self) -> dict[str, Any]:
         """Return immutable Preview Run sources and playback-only loudness matching."""
         with self._lock:
-            if self._status["state"] != "complete":
+            if not self._last_success:
                 raise ValueError("Comparison Playback requires a completed Preview Run")
-            paths = self._status.get("paths")
-            outputs = self._status.get("outputs")
-            start = self._status.get("start_seconds")
-            duration = self._status.get("duration_seconds")
+            paths = self._last_success.get("paths")
+            outputs = self._last_success.get("outputs")
+            start = self._last_success.get("start_seconds")
+            duration = self._last_success.get("duration_seconds")
         if (
             not isinstance(paths, list)
             or not isinstance(outputs, list)
@@ -193,6 +203,20 @@ class DesktopBridge:
             "duration_seconds": duration,
             **metrics,
         }
+
+    def preview_mix_report(self) -> dict[str, str]:
+        """Return the latest successful Preview Run's self-contained Mix Report."""
+        with self._lock:
+            report = self._last_success and self._last_success.get("html_report")
+        if not isinstance(report, str):
+            raise ValueError("A successful Preview Run is required before viewing its Mix Report")
+        return {"path": report, "url": Path(report).as_uri()}
+
+    def open_preview_mix_report(self) -> dict[str, str]:
+        """Open the current Preview Mix Report in the system browser."""
+        report = self.preview_mix_report()
+        webbrowser.open(report["url"])
+        return report
 
 
 def main() -> None:
