@@ -255,12 +255,13 @@ podcast-automix '/home/me/Audio Files/A01.wav' '/home/me/Audio Files/A02.wav' '/
 
 Use `--` before positional arguments when a relative filename begins with `-`. Relative paths
 are resolved from the terminal's current working directory. Symbolic links are resolved before
-processing, so outputs are written beside the link target, not beside the symlink. Outputs use
+processing, so default outputs are written beside the link target, not beside the symlink. Outputs use
 the `_auto-mixed.wav` suffix, and existing files are never silently replaced. Use
 `--preview-start 60 --preview-duration 30` for a short preview and `--advanced` to expose tuning
-controls.
+controls. Pass `--output-dir DIRECTORY` to write every WAV, report, and optional diagnostic there
+instead; the directory must already exist.
 
-Each run writes:
+Without `--output-dir`, each run writes:
 
 - One `_auto-mixed.wav` replacement beside each input microphone.
 - `podcast-automix-report.html`, a self-contained visual report beside the first input.
@@ -279,6 +280,12 @@ Exit statuses are `0` for success, `1` for an internal failure, `2` for an expec
 `130` for cancellation. Stable error codes are `invalid_arguments`, `invalid_configuration`,
 `invalid_inputs`, `output_collision`, `processing_failed`, `cancelled`, and `internal_failure`;
 message text is explanatory and is not an automation API.
+
+Use `--write-config PATH` to create a reusable configuration and `--config PATH` to load one;
+explicit setting flags override loaded values. See the dedicated
+[Automation Result v1](docs/automation-result-v1.md) and
+[Automix Configuration v1](docs/automix-configuration-v1.md) references for field definitions,
+compatibility rules, exclusions, and complete examples.
 
 Run `podcast-automix --help` for the complete command-line reference.
 
