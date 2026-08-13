@@ -18,6 +18,7 @@ from rich.prompt import Confirm, FloatPrompt, Prompt
 from rich.table import Table
 
 from .core import AudioInfo, AutomixError, Settings
+from .engine import AutomixEngine
 from .run import RunRequest, run_automix
 
 console = Console()
@@ -130,7 +131,13 @@ def main() -> None:
         ) as progress_display:
             tasks: dict[str, TaskID] = {}
 
-            def show_progress(phase: str, track: int, completed: int, total: int) -> None:
+            def show_progress(event) -> None:
+                phase = {
+                    "analyzing": "Analyzing",
+                    "rendering": "Rendering",
+                    "measuring_loudness": "Measuring loudness",
+                }[event.name.value]
+                track, completed, total = event.track, event.completed, event.total
                 task = tasks.get(phase)
                 if task is None:
                     task = progress_display.add_task(
@@ -159,7 +166,7 @@ def main() -> None:
                     )
                 console.print(table)
 
-            result = run_automix(
+            result = AutomixEngine(run_automix).execute(
                 RunRequest(
                     paths=paths,
                     settings=settings,

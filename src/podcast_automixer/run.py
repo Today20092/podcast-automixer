@@ -27,6 +27,7 @@ class RunRequest:
     preview_duration: float = 30.0
     overwrite: bool = False
     diagnostics: bool = False
+    output_directory: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ def run_automix(
         infos,
         preview=preview,
         overwrite=request.overwrite,
+        output_directory=request.output_directory,
         confirm_overwrite=confirm_overwrite,
     )
     outputs = rendered_audio.paths

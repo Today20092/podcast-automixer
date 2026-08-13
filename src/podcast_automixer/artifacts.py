@@ -29,10 +29,14 @@ class RenderedAudioArtifacts:
         *,
         preview: bool,
         overwrite: bool,
+        output_directory: Path | None = None,
         confirm_overwrite: OverwriteConfirmation | None = None,
     ) -> RenderedAudioArtifacts:
         suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
-        paths = [info.path.with_name(f"{info.path.stem}{suffix}") for info in infos]
+        paths = [
+            (output_directory or info.path.parent) / f"{info.path.stem}{suffix}"
+            for info in infos
+        ]
         collisions = [path for path in paths if path.exists()]
         if collisions and not overwrite:
             confirmed = bool(confirm_overwrite and confirm_overwrite(len(collisions)))
