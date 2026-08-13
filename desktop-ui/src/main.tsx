@@ -25,6 +25,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -285,10 +286,24 @@ export function App() {
   }, [total]);
   useEffect(() => {
     window.receiveDroppedPaths = (next) => void add(next);
-    const ready = () => void refresh();
+    let initialized = false;
+    const timeout = window.setTimeout(() => {
+      if (!initialized) {
+        setError("Desktop bridge did not become ready. Restart the desktop application and try again.");
+      }
+    }, 10_000);
+    const ready = () => {
+      if (initialized || !window.pywebview?.api) return;
+      initialized = true;
+      window.clearTimeout(timeout);
+      void refresh();
+    };
     window.addEventListener("pywebviewready", ready);
-    void refresh();
-    return () => window.removeEventListener("pywebviewready", ready);
+    ready();
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener("pywebviewready", ready);
+    };
   }, []);
   useEffect(() => {
     if (!active) return;
@@ -461,7 +476,7 @@ export function App() {
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <Sidebar collapsible="none">
+        <Sidebar collapsible="offcanvas">
           <SidebarHeader>
             <div className="brand">
               <span>PA</span>
@@ -478,8 +493,10 @@ export function App() {
                   {steps.map(([id, label], i) => (
                     <SidebarMenuItem key={id}>
                       <SidebarMenuButton
+                        aria-label={label}
                         isActive={stage === id}
                         disabled={steps.findIndex((s) => s[0] === stage) < i}
+                        onClick={() => changeStage(id)}
                       >
                         <span className="step">{i + 1}</span>
                         {label}
@@ -518,6 +535,10 @@ export function App() {
         </Sidebar>
         <SidebarInset>
           <main className="workspace">
+            <div className="mobile-navigation">
+              <SidebarTrigger />
+              <span>Workflow and appearance</span>
+            </div>
             <header>
               <div>
                 <p>{steps.find((s) => s[0] === stage)?.[1]}</p>

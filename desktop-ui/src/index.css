@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -56,6 +56,9 @@ input {
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 0.7rem;
+}
+.mobile-navigation {
+  display: none;
 }
 .workspace {
   width: 100%;
@@ -246,6 +249,13 @@ input {
   margin-right: auto;
 }
 @media (max-width: 780px) {
+  .mobile-navigation {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
   .workspace {
     padding: 1.25rem;
   }
@@ -419,277 +429,5 @@ input {
   }
   html {
     @apply font-sans;
-  }
-}
-
-body {
-  margin: 0;
-  overflow-x: hidden;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-}
-.brand > span {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.65rem;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-weight: 750;
-}
-.brand div {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-.brand small {
-  color: var(--muted-foreground);
-  font-size: 0.72rem;
-}
-.step {
-  display: grid;
-  place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 0.7rem;
-}
-.workspace {
-  width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: clamp(1.5rem, 4vw, 4rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1.75rem;
-}
-.workspace > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 2rem;
-}
-.workspace > header p {
-  margin: 0 0 0.45rem;
-  color: var(--muted-foreground);
-  font-size: 0.78rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-}
-.workspace h1 {
-  max-width: 62rem;
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 4rem);
-  line-height: 0.98;
-  letter-spacing: -0.055em;
-  font-weight: 670;
-}
-.surface {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  min-width: 0;
-}
-.surface h2 {
-  margin: 0;
-  font-size: 1.35rem;
-  letter-spacing: -0.025em;
-}
-.surface p {
-  color: var(--muted-foreground);
-  margin: 0.3rem 0 0;
-}
-.section-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 2rem;
-}
-.drop {
-  min-height: 180px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 0.6rem;
-  border: 1px dashed var(--border);
-  border-radius: 0.75rem;
-  text-align: center;
-  background: color-mix(in srgb, var(--muted) 35%, transparent);
-}
-.drop > svg {
-  width: 1.6rem;
-}
-.drop span {
-  color: var(--muted-foreground);
-  font-size: 0.85rem;
-}
-.recording-list {
-  border-block: 1px solid var(--border);
-}
-.recording-row {
-  display: grid;
-  grid-template-columns:
-    auto minmax(150px, 1.5fr) minmax(130px, 1fr)
-    70px 120px auto auto auto;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.8rem 0.25rem;
-}
-.recording-row > svg {
-  width: 1rem;
-  color: var(--muted-foreground);
-}
-.filename {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.filename strong,
-.filename small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.filename small,
-.details {
-  color: var(--muted-foreground);
-  font-size: 0.72rem;
-}
-.details {
-  padding: 0 2.25rem 0.75rem;
-}
-.waveform {
-  position: relative;
-  height: 180px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-block: 1px solid var(--border);
-  background: color-mix(in srgb, var(--muted) 30%, transparent);
-  cursor: crosshair;
-}
-.waveform svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  color: var(--primary);
-}
-.waveform path {
-  fill: color-mix(in srgb, currentColor 25%, transparent);
-  stroke: currentColor;
-  stroke-width: 0.4;
-}
-.waveform i {
-  position: absolute;
-  inset-block: 0;
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
-  border-inline: 2px solid var(--primary);
-  pointer-events: none;
-}
-.range-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 180px));
-}
-.operation {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem 0;
-}
-.operation > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.programs {
-  justify-content: flex-start;
-}
-.transport {
-  display: grid;
-  grid-template-columns: auto minmax(140px, auto) 1fr;
-  align-items: center;
-  gap: 1rem;
-  padding-block: 2rem;
-}
-.transport > div {
-  display: flex;
-  flex-direction: column;
-}
-.transport span {
-  color: var(--muted-foreground);
-  font-size: 0.8rem;
-}
-.destination {
-  display: flex;
-  gap: 0.75rem;
-}
-.surface > footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-.review-actions {
-  justify-content: flex-end !important;
-}
-.review-actions button:first-child {
-  margin-right: auto;
-}
-@media (max-width: 780px) {
-  .workspace {
-    padding: 1.25rem;
-  }
-  .workspace > header,
-  .section-heading {
-    align-items: start;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .workspace h1 {
-    font-size: clamp(2rem, 10vw, 3rem);
-  }
-  .recording-row {
-    grid-template-columns: auto 1fr auto auto;
-  }
-  .recording-row input,
-  .recording-row > span {
-    grid-column: 2;
-  }
-  .transport {
-    grid-template-columns: auto 1fr;
-  }
-  .surface > footer,
-  .destination {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .surface > footer button {
-    width: 100%;
-  }
-  .review-actions button:first-child {
-    margin-right: 0;
-  }
-  .range-fields {
-    grid-template-columns: 1fr;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
   }
 }
