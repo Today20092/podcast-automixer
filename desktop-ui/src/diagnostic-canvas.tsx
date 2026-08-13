@@ -21,9 +21,11 @@ function LaneCanvas({ lane, timeline, width, start, end, revision }: { lane: Lan
     const canvas = ref.current, ratio = devicePixelRatio || 1, height = 230;
     const next = `${start}:${end}:${width}:${revision}:${ratio}:${document.documentElement.className}`;
     if (!canvas || signature.current === next) return;
-    signature.current = next; canvas.width = width * ratio; canvas.height = height * ratio;
-    const context = canvas.getContext("2d"); if (!context) return;
-    context.scale(ratio, ratio); context.clearRect(0, 0, width, height);
+    let frame = requestAnimationFrame(() => {
+      signature.current = next;
+      canvas.width = Math.ceil(width * ratio); canvas.height = Math.ceil(height * ratio);
+      const context = canvas.getContext("2d"); if (!context) return;
+      if (context.setTransform) context.setTransform(ratio, 0, 0, ratio, 0, 0); else context.scale?.(ratio, ratio); context.clearRect(0, 0, width, height);
     const overscan = (end - start) * .1, from = Math.max(0, start - overscan), to = Math.min(1, end + overscan);
     const drawEnvelope = (levels: [number, number][][], color: string) => {
       const level = chooseEnvelopeLevel(levels, width * (to - from));
@@ -33,34 +35,36 @@ function LaneCanvas({ lane, timeline, width, start, end, revision }: { lane: Lan
       for (let index = last - 1; index >= first; index--) context.lineTo((index / level.length - start) / (end - start) * width, 58 + level[index][1] * 42);
       context.fill();
     };
-    drawEnvelope(lane.waveform_levels, `${lane.color}55`); drawEnvelope(lane.gain_adjusted_waveform_levels, `${lane.color}bb`);
+      drawEnvelope(lane.waveform_levels, `${lane.color}55`); drawEnvelope(lane.gain_adjusted_waveform_levels, `${lane.color}bb`);
     const binary = (values: boolean[], y: number, color: string) => {
       context.fillStyle = color; const first = Math.floor(from * values.length), last = Math.ceil(to * values.length);
       for (let index = first; index < last; index++) if (values[index]) context.fillRect((index / values.length - start) / (end - start) * width, y, Math.max(1, width / values.length / (end - start)), 10);
     };
-    binary(lane.speech_evidence, 120, "#60a5fa"); binary(lane.automix_target, 143, "#34d399");
-    context.strokeStyle = lane.color; context.beginPath();
+      binary(lane.speech_evidence, 120, "#60a5fa"); binary(lane.automix_target, 143, "#34d399");
+      context.strokeStyle = lane.color; context.beginPath();
     const gains = lane.applied_gain_db, first = Math.floor(from * gains.length), last = Math.ceil(to * gains.length);
     for (let index = first; index < last; index++) {
       const x = (index / Math.max(1, gains.length - 1) - start) / (end - start) * width;
       const y = 170 + (timeline.db_domain.maximum - gains[index]) / (timeline.db_domain.maximum - timeline.db_domain.minimum) * 50;
       context.lineTo(x, y);
     }
-    context.stroke();
+      context.stroke();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [lane, timeline, width, start, end, revision]);
   return <canvas ref={ref} aria-label={`${lane.name}: Input Waveform, Gain-Adjusted Waveform, Speech Evidence, Automix Target, and Applied Gain`} />;
 }
 
 export function DiagnosticCanvas({ timeline, playheadSeconds = 0, onSeek }: { timeline: DiagnosticTimeline; playheadSeconds?: number; onSeek?: (seconds: number) => void }) {
   const viewport = useRef<HTMLDivElement>(null), [width, setWidth] = useState(800), [zoom, setZoom] = useState(1), [scroll, setScroll] = useState(0);
-  const playhead = useRef<HTMLDivElement>(null), drag = useRef(false), wasPlaying = useRef(false);
+  const playhead = useRef<HTMLDivElement>(null), drag = useRef(false), wasPlaying = useRef(false), resizeFrame = useRef(0);
   useEffect(() => {
     const element = playhead.current;
     if (!element) return;
     const percent = timeline.duration_seconds ? playheadSeconds / timeline.duration_seconds * 100 : 0;
     requestAnimationFrame(() => { element.style.transform = `translateX(${percent}%)`; });
   }, [playheadSeconds, timeline.duration_seconds]);
-  useEffect(() => { const element = viewport.current; if (!element) return; const resize = () => setWidth(element.clientWidth || 1); resize(); const observer = new ResizeObserver(resize); observer.observe(element); return () => observer.disconnect(); }, []);
+  useEffect(() => { const element = viewport.current; if (!element) return; const resize = () => { cancelAnimationFrame(resizeFrame.current); resizeFrame.current = requestAnimationFrame(() => setWidth(element.clientWidth || 1)); }; resize(); const observer = new ResizeObserver(resize); observer.observe(element); return () => { observer.disconnect(); cancelAnimationFrame(resizeFrame.current); }; }, []);
   const contentWidth = width * zoom, start = scroll / contentWidth, end = Math.min(1, (scroll + width) / contentWidth);
   const frame = Math.min(Math.max(0, Math.floor(playheadSeconds * 1000 / timeline.frame_ms)), Math.max(0, (timeline.lanes[0]?.applied_gain_db.length || 1) - 1));
   return <section className="diagnostic-timeline" aria-label="Diagnostic Timeline">

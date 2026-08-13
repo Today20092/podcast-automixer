@@ -252,6 +252,7 @@ export function App() {
     [duration, setDuration] = useState(30),
     [program, setProgram] = useState<Program>("original"),
     [comparison, setComparison] = useState<Comparison | null>(null),
+    [comparisonRevision, setComparisonRevision] = useState(0),
     [fullDirectory, setFullDirectory] = useState(""),
     [destination, setDestination] = useState(""),
     [overwrite, setOverwrite] = useState(false),
@@ -338,6 +339,9 @@ export function App() {
       const result = next.length ? await api.inspect_recording_set(next) : null;
       setPaths(next);
       setInspection(result);
+      setStart(0);
+      setPlaybackPosition(0);
+      setComparison(null);
     } catch (e) {
       setError(String(e));
     }
@@ -365,6 +369,7 @@ export function App() {
     try {
       const data = await api.comparison_playback();
       setComparison(data);
+      setComparisonRevision((value) => value + 1);
       setProgram("original");
       setPlaybackPosition(0);
     } catch (e) {
@@ -804,7 +809,7 @@ export function App() {
                   </Alert>
                 )}
                 {comparison?.diagnostic_timeline && (
-                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} playheadSeconds={playbackPosition} onSeek={seekComparison} />
+                  <DiagnosticCanvas key={comparisonRevision} timeline={comparison.diagnostic_timeline} playheadSeconds={playbackPosition} onSeek={seekComparison} />
                 )}
                 <div className="transport">
                   <Button
