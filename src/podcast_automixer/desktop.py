@@ -597,12 +597,12 @@ class DesktopBridge:
             float(duration),
         )
         report = self._last_success.get("report")
-        key = (paths[0], float(start), float(duration))
+        key = ("\n".join(paths), float(start), float(duration))
         timeline = self._diagnostic_timeline_cache.get(key)
         if timeline is None and isinstance(report, str):
             timeline = build_diagnostic_timeline(
-                Path(paths[0]),
-                Path(outputs[0]),
+                [Path(path) for path in paths],
+                [Path(path) for path in outputs],
                 Path(report),
                 float(start),
                 float(duration),

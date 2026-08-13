@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const durationSeconds = 300;
-const scenes = [0, 1, 3, 6, 8];
+const scenes = [1, 3, 6, 8];
 const viewports = { wide: { width: 1440, height: 1000 }, constrained: { width: 980, height: 900 } };
 const output = join(import.meta.dirname, "artifacts");
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: join(import.meta.dirname, "../.."), encoding: "utf8" }).trim();
@@ -72,14 +72,15 @@ async function measure(page, workload) {
 test("captures deterministic Diagnostic Timeline scenes and performance", async ({ browser, browserName }) => {
   mkdirSync(output, { recursive: true });
   const report = { commit, browser: `${browserName} ${browser.version()}`, runtime: process.version, durationSeconds, method: "Playwright Chromium; rAF intervals; Long Tasks API; React DevTools commit hook; SVG/canvas MutationObserver", scenes: [], workloads: {} };
-  for (const colorScheme of ["light", "dark"]) for (const [viewportName, viewport] of Object.entries(viewports)) for (const microphones of scenes) {
+  for (const colorScheme of ["light", "dark"]) for (const [viewportName, viewport] of Object.entries(viewports)) for (const microphones of scenes) for (const view of ["fit", "zoomed"]) {
     const context = await browser.newContext({ colorScheme, viewport });
     const page = await context.newPage();
     await installInstrumentation(page);
     await loadScene(page, microphones);
-    const name = `${microphones}-mics-${viewportName}-${colorScheme}`;
+    if (view === "zoomed") await page.getByLabel("Zoom in").click();
+    const name = `${microphones}-mics-${view}-${viewportName}-${colorScheme}`;
     await page.screenshot({ path: join(output, `${name}.png`), fullPage: true });
-    report.scenes.push({ name, microphones, viewport, colorScheme, states: ["open", "attenuated", "opening", "closing", "multiple-active", "no-clear-owner", "Evidence Gap"] });
+    report.scenes.push({ name, microphones, view, viewport, colorScheme, states: ["open", "attenuated", "opening", "closing", "multiple-active", "no-clear-owner", "Evidence Gap"] });
     await context.close();
   }
   const context = await browser.newContext({ colorScheme: "light", viewport: viewports.wide });
@@ -90,5 +91,5 @@ test("captures deterministic Diagnostic Timeline scenes and performance", async 
   report.workloads.resize = await measure(page, "resize");
   await context.close();
   writeFileSync(join(output, "baseline.json"), JSON.stringify(report, null, 2));
-  expect(report.scenes).toHaveLength(20);
+  expect(report.scenes).toHaveLength(32);
 });

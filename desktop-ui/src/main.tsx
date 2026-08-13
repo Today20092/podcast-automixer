@@ -799,7 +799,7 @@ export function App() {
                   </Alert>
                 )}
                 {comparison?.diagnostic_timeline && (
-                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} />
+                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} playheadSeconds={playbackPosition} />
                 )}
                 <div className="transport">
                   <Button
