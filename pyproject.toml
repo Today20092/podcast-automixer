@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
   "numpy>=2.1",
   "pyloudnorm>=0.2.0",
+  "pywebview>=6.2.1",
   "rich>=14.0",
   "scipy>=1.14",
   "silero-vad>=6.0",
@@ -40,9 +41,11 @@ Source = "https://github.com/Today20092/podcast-automixer"
 
 [project.scripts]
 podcast-automix = "podcast_automixer.cli:main"
+podcast-automix-desktop = "podcast_automixer.desktop:main"
 
 [dependency-groups]
 dev = [
+  "pyinstaller>=6.22.0",
   "pytest>=8.3",
   "ruff>=0.12",
   "ty>=0.0.1a21",

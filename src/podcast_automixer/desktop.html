@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>Podcast Automixer</title>
+<main><h1>Podcast Automixer</h1><p id="status" role="status" aria-live="polite">Ready.</p><label>WAV paths (one per line)<textarea id="paths"></textarea></label><label>Preview output folder<input id="output" type="text"></label><button id="start">Create 30-second preview</button><button id="cancel" disabled>Cancel</button><button id="play" disabled>Play preview</button></main>
+<script>
+const status = document.querySelector('#status'), start = document.querySelector('#start'), cancel = document.querySelector('#cancel'), play = document.querySelector('#play'); let preview;
+const paths = () => document.querySelector('#paths').value.split('\n').map(x => x.trim()).filter(Boolean);
+async function refresh() { const s = await window.pywebview.api.status(); status.textContent = s.error || (s.progress ? `${s.state}: ${s.progress.phase} ${s.progress.completed}/${s.progress.total}` : s.state); start.disabled = ['running','cancelling'].includes(s.state); cancel.disabled = s.state !== 'running'; if (s.outputs) { preview = s.outputs[0]; play.disabled = false; } }
+start.onclick = async () => { try { await window.pywebview.api.start_preview(paths(), document.querySelector('#output').value); await refresh(); } catch (e) { status.textContent = e.message; } };
+cancel.onclick = async () => { await window.pywebview.api.cancel_preview(); await refresh(); };
+play.onclick = () => new Audio(`file:///${preview.replaceAll('\\', '/')}`).play();
+setInterval(refresh, 250);
+</script>
