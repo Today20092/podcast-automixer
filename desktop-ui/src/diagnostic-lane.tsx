@@ -92,7 +92,7 @@ export function DiagnosticLane({ track, playhead, domains, index = 0, collapsed,
   </section>;
 }
 
-export function RecordingSetDiagnostics({ tracks, playhead, onSeek, onSolo }: { tracks: DiagnosticTrack[]; playhead: number; onSeek?: (seconds: number) => void; onSolo?: (trackIndex: number | null) => void }) {
+export function RecordingSetDiagnostics({ tracks, playhead, onSeek: _onSeek, onSolo }: { tracks: DiagnosticTrack[]; playhead: number; onSeek?: (seconds: number) => void; onSolo?: (trackIndex: number | null) => void }) {
   const [filter, setFilter] = React.useState<"all" | "active" | "flagged">("all");
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [solo, setSolo] = React.useState<string | null>(null);
@@ -115,7 +115,6 @@ export function RecordingSetDiagnostics({ tracks, playhead, onSeek, onSolo }: { 
           <div>{tracks.map((track, index) => { const frame = frameAt(track, playhead); if (!frame) return null; return <p style={{ "--track-color": track.color || fallbackColors[index % fallbackColors.length] } as React.CSSProperties} key={track.id || `${track.name}-${index}`}><strong><i />{track.name}</strong><b>{frame.gain_db.toFixed(1)} dB</b><span>{frame.speech ? "Speaking" : "Silent"} · {frame.target_open ? "Open target" : "Attenuate target"}</span><em>{responseText[frame.response]}</em></p>; })}</div>
         </section>
       </div>
-      <section className="review-moments" aria-label="Review Moments"><h3>Review moments</h3><div>{moments.map((moment, index) => <button type="button" className={moment.flagged ? "is-flagged" : "is-context"} key={`${moment.kind}-${moment.seconds}-${index}`} aria-label={`${moment.label} at ${moment.seconds.toFixed(1)} seconds${moment.flagged ? ", flagged" : ", context only"}`} onClick={() => onSeek?.(Math.max(0, moment.seconds - 1))}><span>{moment.seconds.toFixed(0)}s</span><strong>{moment.label}</strong><em className="sr-only">{moment.flagged ? "Check" : "Context only"}</em></button>)}</div><p className="sr-only">Potential problems are flagged. Multiple-active and no-clear-owner moments are context, not automatic failures.</p></section>
     </div>
   </div>;
 }

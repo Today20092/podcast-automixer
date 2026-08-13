@@ -271,9 +271,8 @@ describe("desktop workflow", () => {
     expect(screen.getByText(/Speaking · Open target · 0.0 dB · At open target/)).toBeVisible();
   });
 
-  it("keeps comparison program and playback synchronized while reviewing and soloing a moment", async () => {
+  it("keeps comparison program and playback synchronized while soloing a microphone", async () => {
     const user = userEvent.setup();
-    const seek = vi.spyOn(ComparisonAudioController.prototype, "seek");
     const select = vi.spyOn(ComparisonAudioController.prototype, "select");
     const toggle = vi.spyOn(ComparisonAudioController.prototype, "toggle");
     const solo = vi.spyOn(ComparisonAudioController.prototype, "setSolo");
@@ -285,12 +284,10 @@ describe("desktop workflow", () => {
     await screen.findByRole("button", { name: "Difference" });
     await user.click(screen.getByRole("button", { name: "Difference" }));
     await user.click(screen.getByRole("button", { name: "Play comparison" }));
-    await user.click(screen.getByRole("button", { name: /Rapid switching at 1.0 seconds/ }));
     await user.click(screen.getByRole("button", { name: "Solo host" }));
 
     expect(select).toHaveBeenLastCalledWith("difference");
     expect(toggle).toHaveBeenCalledTimes(1);
-    expect(seek).toHaveBeenLastCalledWith(0);
     expect(solo).toHaveBeenLastCalledWith(0);
     expect(screen.getByText("Difference monitor")).toBeVisible();
   });

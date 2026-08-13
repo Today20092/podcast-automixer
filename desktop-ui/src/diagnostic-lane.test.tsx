@@ -66,7 +66,7 @@ describe("Recording Set diagnostics", () => {
     ]));
   });
 
-  it("seeks before review moments and supports solo, filters, and lane collapse by keyboard-equivalent buttons", async () => {
+  it("supports solo, filters, and lane collapse by keyboard-equivalent buttons", async () => {
     const user = userEvent.setup();
     const seek = vi.fn();
     const solo = vi.fn();
@@ -75,8 +75,6 @@ describe("Recording Set diagnostics", () => {
     scene[1].frames = [{ seconds: 5, speech: false, target_open: true, gain_db: 0, response: "open" }];
     render(<RecordingSetDiagnostics tracks={scene} playhead={5} onSeek={seek} onSolo={solo} />);
 
-    await user.click(screen.getByRole("button", { name: /Speaking while attenuated at 5.0 seconds, flagged/ }));
-    expect(seek).toHaveBeenCalledWith(4);
     await user.click(screen.getByRole("button", { name: "Solo Mic 1" }));
     expect(solo).toHaveBeenLastCalledWith(0);
     await user.click(screen.getByRole("button", { name: "Stop soloing Mic 1" }));
