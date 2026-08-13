@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import webbrowser
+from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
 from threading import Lock, Thread
@@ -13,7 +15,7 @@ from .loudness import analyze_comparison_playback
 
 
 class DesktopBridge:
-    """Expose only Recording Set inspection and one cancellable Preview Run to JavaScript."""
+    """Expose Recording Set inspection plus separate preview and full-render journeys."""
 
     def __init__(self, engine: Any | None = None) -> None:
         self._engine = engine or AutomixEngine()
@@ -21,6 +23,24 @@ class DesktopBridge:
         self._token: CancellationToken | None = None
         self._status: dict[str, Any] = {"state": "idle", "progress": None, "error": None}
         self._last_success: dict[str, Any] | None = None
+        self._last_full_render: dict[str, Any] | None = None
+
+    @staticmethod
+    def _default_full_render_directory(paths: list[Path]) -> Path:
+        """Put deliverables beside the recording set, never in Preview Runs."""
+        parents = {path.parent.resolve() for path in paths}
+        parent = next(iter(parents)) if len(parents) == 1 else paths[0].parent.resolve()
+        return parent / "Podcast Automixer Output"
+
+    @staticmethod
+    def _unique_directory(directory: Path) -> Path:
+        if not directory.exists():
+            return directory
+        for number in range(2, 10_000):
+            candidate = directory.with_name(f"{directory.name} ({number})")
+            if not candidate.exists():
+                return candidate
+        raise RuntimeError("Could not choose a unique output folder")
 
     @staticmethod
     def _paths(value: object) -> list[Path]:
@@ -166,11 +186,148 @@ class DesktopBridge:
         selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
         return str(selected) if selected else None
 
+    def choose_full_render_directory(self) -> str | None:
+        """Open the native destination chooser for Full Render deliverables."""
+        import webview
+
+        selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
+        return str(selected) if selected else None
+
+    def full_render_destination(
+        self, paths: object, chosen_directory: object = None
+    ) -> dict[str, str]:
+        recording_paths = self._paths(paths)
+        if chosen_directory is not None and not isinstance(chosen_directory, str):
+            raise ValueError("chosen_directory must be a directory path")
+        base = (
+            Path(chosen_directory)
+            if chosen_directory
+            else self._default_full_render_directory(recording_paths)
+        )
+        return {"default": str(base), "unique": str(self._unique_directory(base))}
+
+    def start_full_render(
+        self, paths: object, chosen_directory: object = None, replace_existing: object = False
+    ) -> dict[str, str]:
+        recording_paths = self._paths(paths)
+        if chosen_directory is not None and not isinstance(chosen_directory, str):
+            raise ValueError("chosen_directory must be a directory path")
+        if not isinstance(replace_existing, bool):
+            raise ValueError("replace_existing must be true or false")
+        inspection = self._engine.inspect(recording_paths)
+        if inspection.problems or not inspection.inputs:
+            raise ValueError("Recording Set must be valid immediately before Full Render")
+        base = (
+            Path(chosen_directory)
+            if chosen_directory
+            else self._default_full_render_directory(recording_paths)
+        )
+        destination = base if replace_existing else self._unique_directory(base)
+        if replace_existing and base.exists() and not base.is_dir():
+            raise ValueError("Full Render destination must be a folder")
+        destination_existed = destination.exists()
+        destination.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            if self._status["state"] in {"running", "cancelling"}:
+                raise RuntimeError("An automix run is already active")
+            self._token = CancellationToken()
+            self._status = {
+                "state": "running",
+                "progress": None,
+                "error": None,
+                "kind": "full_render",
+            }
+            Thread(
+                target=self._full_render,
+                args=(
+                    recording_paths,
+                    destination,
+                    self._token,
+                    replace_existing,
+                    not destination_existed,
+                ),
+                daemon=True,
+            ).start()
+        return {"state": "running", "destination": str(destination)}
+
+    def _full_render(
+        self,
+        paths: list[Path],
+        destination: Path,
+        token: CancellationToken,
+        replace_existing: bool,
+        remove_empty_destination: bool,
+    ) -> None:
+        try:
+            result = self._engine.full_render(
+                paths,
+                destination,
+                progress=self._progress,
+                cancellation=token,
+                confirm_overwrite=(lambda _count: replace_existing),
+            )
+            completed = {
+                "outputs": [str(path) for path in result.outputs],
+                "destination": str(destination),
+                "report": str(result.report),
+                "html_report": str(result.html_report),
+            }
+            with self._lock:
+                self._last_full_render = completed
+                self._status = {
+                    "state": "complete",
+                    "progress": self._status["progress"],
+                    "error": None,
+                    "kind": "full_render",
+                }
+        except AutomixCancelled:
+            if remove_empty_destination:
+                _remove_empty_directory(destination)
+            with self._lock:
+                self._status = {
+                    "state": "cancelled",
+                    "progress": None,
+                    "error": None,
+                    "kind": "full_render",
+                }
+        except Exception as exc:
+            if remove_empty_destination:
+                _remove_empty_directory(destination)
+            with self._lock:
+                self._status = {
+                    "state": "failed",
+                    "progress": None,
+                    "error": str(exc),
+                    "kind": "full_render",
+                }
+
+    def cancel_full_render(self) -> dict[str, str]:
+        return self.cancel_preview()
+
+    def open_full_render_folder(self) -> dict[str, str]:
+        with self._lock:
+            result = self._last_full_render.copy() if self._last_full_render else None
+        if not result:
+            raise ValueError("A completed Full Render is required before opening its folder")
+        destination = result["destination"]
+        try:
+            if hasattr(os, "startfile"):
+                os.startfile(destination)  # type: ignore[attr-defined]
+            else:
+                webbrowser.open(Path(destination).as_uri())
+        except Exception:
+            # A shell/device failure must not turn a completed render into a failed one.
+            pass
+        return {"path": destination}
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             status = self._status.copy()
             if self._last_success:
                 status["result"] = self._last_success.copy()
+                status["preview_result"] = self._last_success.copy()
+            if self._last_full_render:
+                status["full_render_result"] = self._last_full_render.copy()
             return status
 
     def comparison_playback(self) -> dict[str, Any]:
@@ -217,6 +374,12 @@ class DesktopBridge:
         report = self.preview_mix_report()
         webbrowser.open(report["url"])
         return report
+
+
+def _remove_empty_directory(directory: Path) -> None:
+    """Best-effort cleanup for a new Full Render folder after an incomplete run."""
+    with suppress(OSError):
+        directory.rmdir()
 
 
 def main() -> None:

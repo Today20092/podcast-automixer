@@ -103,8 +103,10 @@ def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: 
     sf.write(rendered, samples * 0.5, 48_000, subtype="FLOAT")
     bridge = DesktopBridge()
     bridge._last_success = {
-        "paths": [str(original)], "outputs": [str(rendered)],
-        "start_seconds": 0.0, "duration_seconds": 1.0,
+        "paths": [str(original)],
+        "outputs": [str(rendered)],
+        "start_seconds": 0.0,
+        "duration_seconds": 1.0,
     }
 
     comparison = bridge.comparison_playback()
@@ -153,3 +155,89 @@ def test_failed_replacement_keeps_the_last_successful_preview_and_report(
     monkeypatch.setattr(desktop.webbrowser, "open", opened.append)
     assert bridge.open_preview_mix_report()["url"] == report.as_uri()
     assert opened == [report.as_uri()]
+
+
+def test_full_render_uses_a_unique_deliverable_folder_and_keeps_preview_separate(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 10, dtype=np.float32), 48_000, subtype="FLOAT")
+    default = tmp_path / "Podcast Automixer Output"
+    default.mkdir()
+    inspections: list[list[Path]] = []
+
+    class FakeEngine:
+        @staticmethod
+        def inspect(paths):
+            inspections.append(paths)
+            return AutomixEngine().inspect([source])
+
+        @staticmethod
+        def full_render(paths, destination, **kwargs):
+            assert paths == [source]
+            assert destination == tmp_path / "Podcast Automixer Output (2)"
+            assert kwargs["confirm_overwrite"](1) is False
+            output = destination / "voice-automixed.wav"
+            output.touch()
+            return SimpleNamespace(
+                outputs=[output],
+                report=destination / "report.json",
+                html_report=destination / "report.html",
+            )
+
+    bridge = DesktopBridge(FakeEngine())
+    result = bridge.start_full_render([str(source)])
+    assert result == {
+        "state": "running",
+        "destination": str(tmp_path / "Podcast Automixer Output (2)"),
+    }
+    while bridge.status()["state"] != "complete":
+        sleep(0.01)
+    status = bridge.status()
+    assert len(inspections) == 1
+    assert status["full_render_result"]["outputs"] == [
+        str(tmp_path / "Podcast Automixer Output (2)" / "voice-automixed.wav")
+    ]
+    assert "preview_result" not in status
+
+
+def test_full_render_revalidates_and_playback_folder_failure_keeps_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 10, dtype=np.float32), 48_000, subtype="FLOAT")
+
+    class FakeEngine:
+        @staticmethod
+        def inspect(_paths):
+            return SimpleNamespace(inputs=[], problems=[SimpleNamespace()])
+
+    bridge = DesktopBridge(FakeEngine())
+    with pytest.raises(ValueError, match="immediately before Full Render"):
+        bridge.start_full_render([str(source)])
+
+    bridge._last_full_render = {"destination": str(tmp_path), "outputs": []}
+    monkeypatch.setattr(desktop.webbrowser, "open", lambda _url: (_ for _ in ()).throw(OSError()))
+    monkeypatch.delattr(desktop.os, "startfile", raising=False)
+    assert bridge.open_full_render_folder() == {"path": str(tmp_path)}
+    assert bridge.status()["full_render_result"]["destination"] == str(tmp_path)
+
+
+def test_cancelled_full_render_removes_its_new_empty_destination(tmp_path: Path) -> None:
+    source = tmp_path / "voice.wav"
+    sf.write(source, np.zeros(48_000 * 10, dtype=np.float32), 48_000, subtype="FLOAT")
+
+    class FakeEngine:
+        @staticmethod
+        def inspect(_paths):
+            return AutomixEngine().inspect([source])
+
+        @staticmethod
+        def full_render(_paths, _destination, **_kwargs):
+            raise desktop.AutomixCancelled()
+
+    bridge = DesktopBridge(FakeEngine())
+    bridge.start_full_render([str(source)])
+    while bridge.status()["state"] != "cancelled":
+        sleep(0.01)
+    assert not (tmp_path / "Podcast Automixer Output").exists()

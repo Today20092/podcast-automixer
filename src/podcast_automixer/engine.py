@@ -103,9 +103,10 @@ class AutomixEngine:
         settings: Settings = DEFAULT_SETTINGS,
         progress: ProgressListener | None = None,
         cancellation: CancellationToken | None = None,
+        confirm_overwrite: OverwriteConfirmation | None = None,
     ) -> RunResult:
         request = RunRequest(paths, settings, output_directory=output_directory)
-        return self._run(request, progress, cancellation)
+        return self._run(request, progress, cancellation, confirm_overwrite)
 
     def execute(
         self,
