@@ -33,6 +33,15 @@ def _dropped_file_paths(event: object) -> list[str]:
     return paths
 
 
+def _dialog_path(selected: object) -> str | None:
+    """Normalize pywebview's platform-dependent single-folder result."""
+    if isinstance(selected, str):
+        return selected or None
+    if isinstance(selected, (list, tuple)) and selected and isinstance(selected[0], str):
+        return selected[0] or None
+    return None
+
+
 def _bind_drop_events(window: Any) -> None:
     """Use pywebview DOM events so Explorer drops retain native file paths."""
     from webview.dom import DOMEventHandler
@@ -273,8 +282,8 @@ class DesktopBridge:
         """Open the Desktop Shell's native destination chooser for Preview Runs."""
         import webview
 
-        selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
-        return str(selected) if selected else None
+        selected = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
+        return _dialog_path(selected)
 
     @classmethod
     def _abandoned_preview_files(cls, output_directory: object) -> list[Path]:
@@ -310,8 +319,8 @@ class DesktopBridge:
         """Open the native destination chooser for Full Render deliverables."""
         import webview
 
-        selected = webview.windows[0].create_file_dialog(cast(int, webview.FOLDER_DIALOG))
-        return str(selected) if selected else None
+        selected = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
+        return _dialog_path(selected)
 
     def full_render_destination(
         self, paths: object, chosen_directory: object = None

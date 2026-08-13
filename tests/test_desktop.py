@@ -7,7 +7,7 @@ import pytest
 import soundfile as sf
 
 import podcast_automixer.desktop as desktop
-from podcast_automixer.desktop import DesktopBridge, _dropped_file_paths
+from podcast_automixer.desktop import DesktopBridge, _dialog_path, _dropped_file_paths
 from podcast_automixer.engine import AutomixEngine
 
 
@@ -30,6 +30,22 @@ def test_native_drop_paths_require_resolved_paths_and_remove_duplicates() -> Non
         }
     ) == [r"C:\\Recordings\\host.wav", r"C:\\Recordings\\guest.wav"]
     assert _dropped_file_paths({"dataTransfer": {"files": [{"name": "voice.wav"}]}}) == []
+
+
+@pytest.mark.parametrize(
+    ("selected", "expected"),
+    [
+        ((r"C:\\Users\\Ada\\Downloads",), r"C:\\Users\\Ada\\Downloads"),
+        ([r"C:\\Users\\Ada\\Downloads"], r"C:\\Users\\Ada\\Downloads"),
+        (r"C:\\Users\\Ada\\Downloads", r"C:\\Users\\Ada\\Downloads"),
+        (None, None),
+        ((), None),
+    ],
+)
+def test_folder_dialog_returns_one_path_not_container_repr(
+    selected: object, expected: str | None
+) -> None:
+    assert _dialog_path(selected) == expected
 
 
 def test_desktop_drop_boundary_uses_pywebview_paths_and_rejects_bad_recordings() -> None:
