@@ -18,6 +18,7 @@ export class ComparisonAudioController {
   private readonly offsets: number[];
   private readonly buses: Record<ComparisonProgram, GainNode>;
   private readonly context: AudioContext;
+  private readonly monitorGains: GainNode[] = [];
   private selected: ComparisonProgram = "original";
   private looping = false;
   private playing = false;
@@ -52,14 +53,18 @@ export class ComparisonAudioController {
       const item = makeAudio(url(path));
       item.currentTime = offset;
       const source = this.context.createMediaElementSource(item);
+      const monitorGain = this.context.createGain();
+      monitorGain.gain.value = 1;
+      source.connect(monitorGain);
+      this.monitorGains.push(monitorGain);
       const programGain = this.context.createGain();
       const isOriginal = index < sources.original_paths.length;
       programGain.gain.value = isOriginal ? originalGain : automixedGain;
-      source.connect(programGain);
+      monitorGain.connect(programGain);
       programGain.connect(programBus);
       const differenceGain = this.context.createGain();
       differenceGain.gain.value = isOriginal ? -originalGain : automixedGain;
-      source.connect(differenceGain);
+      monitorGain.connect(differenceGain);
       differenceGain.connect(differenceBus);
       return item;
     });
@@ -107,6 +112,15 @@ export class ComparisonAudioController {
   }
 
   setLoop(looping: boolean) { this.looping = looping; }
+
+  setSolo(trackIndex: number | null) {
+    const microphoneCount = this.sources.original_paths.length;
+    const now = this.context.currentTime;
+    this.monitorGains.forEach((gain, sourceIndex) => {
+      const microphoneIndex = sourceIndex % microphoneCount;
+      gain.gain.setTargetAtTime(trackIndex === null || microphoneIndex === trackIndex ? 1 : 0, now, 0.01 / 3);
+    });
+  }
 
   stop() {
     this.audio.forEach((item) => item.pause());

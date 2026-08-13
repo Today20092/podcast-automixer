@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { diagnosticDomains, RecordingSetDiagnostics, type DiagnosticTrack } from "./diagnostic-lane";
+import { diagnosticDomains, RecordingSetDiagnostics, reviewMoments, type DiagnosticTrack } from "./diagnostic-lane";
 
 afterEach(cleanup);
 
@@ -48,5 +49,44 @@ describe("Recording Set diagnostics", () => {
     render(<RecordingSetDiagnostics tracks={scene} playhead={4} />);
     expect(screen.getByText(/Speaking · Open target · 0.0 dB/)).toBeVisible();
     expect(screen.getByText(/Silent · Attenuate target · -12.0 dB/)).toBeVisible();
+  });
+
+  it("distinguishes flagged decision mismatches from contextual ownership moments", () => {
+    const scene: DiagnosticTrack[] = [
+      { id: "host", name: "Host", frames: [{ seconds: 0, speech: true, target_open: false, gain_db: -6, response: "closing" }, { seconds: .5, speech: false, target_open: true, gain_db: -3, response: "opening" }] },
+      { id: "guest", name: "Guest", frames: [{ seconds: 0, speech: false, target_open: false, gain_db: -6, response: "attenuated" }, { seconds: .5, speech: true, target_open: true, gain_db: 0, response: "open" }] },
+    ];
+    const moments = reviewMoments(scene);
+    expect(moments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "speaking-attenuated", flagged: true }),
+      expect.objectContaining({ kind: "silent-open", flagged: true }),
+      expect.objectContaining({ kind: "rapid-switch", flagged: true }),
+      expect.objectContaining({ kind: "multiple-active", flagged: false }),
+      expect.objectContaining({ kind: "no-clear-owner", flagged: false }),
+    ]));
+  });
+
+  it("seeks before review moments and supports solo, filters, and lane collapse by keyboard-equivalent buttons", async () => {
+    const user = userEvent.setup();
+    const seek = vi.fn();
+    const solo = vi.fn();
+    const scene = tracks(2);
+    scene[0].frames = [{ seconds: 5, speech: true, target_open: false, gain_db: -6, response: "closing" }];
+    scene[1].frames = [{ seconds: 5, speech: false, target_open: true, gain_db: 0, response: "open" }];
+    render(<RecordingSetDiagnostics tracks={scene} playhead={5} onSeek={seek} onSolo={solo} />);
+
+    await user.click(screen.getByRole("button", { name: /Speaking while attenuated at 5.0 seconds, flagged/ }));
+    expect(seek).toHaveBeenCalledWith(4);
+    await user.click(screen.getByRole("button", { name: "Solo Mic 1" }));
+    expect(solo).toHaveBeenLastCalledWith(0);
+    await user.click(screen.getByRole("button", { name: "Stop soloing Mic 1" }));
+    expect(solo).toHaveBeenLastCalledWith(null);
+    await user.click(screen.getByRole("button", { name: "Collapse Mic 1 lane" }));
+    expect(screen.getByRole("button", { name: "Expand Mic 1 lane" })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: "Active now" }));
+    expect(screen.queryByRole("region", { name: "Mic 1 automix explanation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Mic 2 automix explanation" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Flagged" }));
+    expect(screen.getAllByRole("region", { name: /automix explanation/ })).toHaveLength(2);
   });
 });

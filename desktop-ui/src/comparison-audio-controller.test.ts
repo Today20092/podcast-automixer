@@ -41,6 +41,14 @@ function setup() {
   return { controller, audio, gains };
 }
 
+function setupTwoTracks() {
+  const audio: FakeAudio[] = [];
+  const gains: FakeNode[] = [];
+  const context = { currentTime: 4, destination: new FakeNode(), createDynamicsCompressor: () => new FakeNode(), createGain: () => { const gain = new FakeNode(); gains.push(gain); return gain; }, createMediaElementSource: () => new FakeNode(), resume: vi.fn(async () => undefined) };
+  const controller = new ComparisonAudioController({ original_paths: ["o1.wav", "o2.wav"], automixed_paths: ["a1.wav", "a2.wav"], start_seconds: 0, duration_seconds: 30, playback_gain_db: { original: 0, automixed: 0 } }, () => { const item = new FakeAudio(); audio.push(item); return item as unknown as HTMLAudioElement; }, () => context as unknown as AudioContext);
+  return { controller, gains };
+}
+
 describe("ComparisonAudioController", () => {
   it("keeps one synchronized graph playing while programs crossfade", async () => {
     const { controller, audio, gains } = setup();
@@ -70,5 +78,20 @@ describe("ComparisonAudioController", () => {
     second.audio[0].onended?.();
     expect(second.audio.map((item) => item.currentTime)).toEqual([12, 0]);
     expect(second.audio.every((item) => item.play.mock.calls.length === 2)).toBe(true);
+  });
+
+  it("solos the corresponding microphone in every comparison program without changing transport", async () => {
+    const { controller, gains } = setupTwoTracks();
+    controller.seek(8);
+    await controller.toggle();
+    controller.select("difference");
+    controller.setSolo(1);
+    const monitorGains = [gains[3], gains[6], gains[9], gains[12]];
+    expect(monitorGains.map((gain) => gain.gain.value)).toEqual([0, 1, 0, 1]);
+    expect(controller.position()).toBe(8);
+    expect(controller.program()).toBe("difference");
+    expect(controller.isPlaying()).toBe(true);
+    controller.setSolo(null);
+    expect(monitorGains.map((gain) => gain.gain.value)).toEqual([1, 1, 1, 1]);
   });
 });
