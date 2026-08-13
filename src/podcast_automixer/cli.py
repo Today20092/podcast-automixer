@@ -153,7 +153,7 @@ def parser() -> argparse.ArgumentParser:
     )
     run = result.add_argument_group("run controls")
     run.add_argument("--preview-start", type=_nonnegative_float, default=None, metavar="SECONDS")
-    run.add_argument("--preview-duration", type=_positive_float, default=30.0, metavar="SECONDS")
+    run.add_argument("--preview-duration", type=_positive_float, default=None, metavar="SECONDS")
     run.add_argument("--output-dir", type=_output_directory, metavar="DIRECTORY")
     run.add_argument("--advanced", action="store_true")
     run.add_argument("--overwrite", action="store_true")
@@ -163,60 +163,63 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--diagnostics", action="store_true", help="write a frame-level activity/gain CSV"
     )
+    configuration = result.add_argument_group("configuration")
+    configuration.add_argument("--config", type=_path, metavar="PATH")
+    configuration.add_argument("--write-config", type=_path, metavar="PATH")
     settings = result.add_argument_group("Automix Engine settings (Safe Defaults)")
     settings.add_argument(
         "--attenuation",
         type=_nonpositive_float,
-        default=-6.0,
+        default=None,
         metavar="DB",
         help="inactive attenuation (default: -6.0)",
     )
     settings.add_argument(
         "--frame-ms",
         type=_positive_int,
-        default=20,
+        default=None,
         metavar="MS",
         help="analysis frame size (default: 20)",
     )
     settings.add_argument(
         "--ambiguity",
         type=_nonnegative_float,
-        default=9.0,
+        default=None,
         metavar="DB",
         help="ownership ambiguity (default: 9.0)",
     )
     settings.add_argument(
         "--preroll-ms",
         type=_nonnegative_int,
-        default=150,
+        default=None,
         metavar="MS",
         help="speech preroll (default: 150)",
     )
     settings.add_argument(
         "--hold-ms",
         type=_nonnegative_int,
-        default=400,
+        default=None,
         metavar="MS",
         help="speech hold (default: 400)",
     )
     settings.add_argument(
         "--open-ms",
         type=_positive_float,
-        default=50.0,
+        default=None,
         metavar="MS",
         help="Opening time constant in milliseconds, about 63%% complete (default: 50.0)",
     )
     settings.add_argument(
         "--close-ms",
         type=_positive_float,
-        default=500.0,
+        default=None,
         metavar="MS",
         help="Closing time constant in milliseconds, about 63%% complete (default: 500.0)",
     )
     settings.add_argument(
         "--segment-seconds",
         type=_positive_int,
-        default=30,
+        default=None,
         metavar="SECONDS",
         help="analysis segment size (default: 30)",
     )
@@ -228,34 +231,77 @@ def main() -> None:
     global console
     if args.no_color:
         console.no_color = True
+    from .configuration import resolve_settings, write_configuration
     from .core import AutomixError, Settings
-    from .engine import AutomixEngine
-    from .run import RunRequest
 
     try:
+        if args.write_config:
+            incompatible = []
+            if args.files:
+                incompatible.append("recordings")
+            if args.advanced:
+                incompatible.append("--advanced")
+            if args.preview_start is not None:
+                incompatible.append("--preview-start")
+            if args.preview_duration is not None:
+                incompatible.append("--preview-duration")
+            if args.output_dir:
+                incompatible.append("--output-dir")
+            if args.diagnostics:
+                incompatible.append("--diagnostics")
+            errors = []
+            try:
+                settings = resolve_settings(args)
+            except ValueError as exc:
+                errors.append(str(exc))
+            if incompatible:
+                errors.append("--write-config cannot be combined with " + ", ".join(incompatible))
+            if errors:
+                raise ValueError("\n".join(errors))
+            write_configuration(args.write_config, settings, overwrite=args.overwrite)
+            console.print("Configuration written.")
+            return
+        errors = []
+        try:
+            settings = resolve_settings(args)
+        except ValueError as exc:
+            errors.append(str(exc))
         if args.non_interactive and not args.files:
-            raise ValueError("--non-interactive requires at least two WAV files.")
+            errors.append("--non-interactive requires at least two WAV files.")
+        if errors:
+            raise ValueError("\n".join(errors))
+        from .engine import AutomixEngine
+        from .run import RunRequest
+
         paths = args.files or (_prompt_paths(show_banner=False) if args.quiet else _prompt_paths())
-        settings = Settings(
-            attenuation_db=args.attenuation,
-            frame_ms=args.frame_ms,
-            ambiguity_db=args.ambiguity,
-            preroll_ms=args.preroll_ms,
-            hold_ms=args.hold_ms,
-            open_ms=args.open_ms,
-            close_ms=args.close_ms,
-            segment_seconds=args.segment_seconds,
-        )
         if args.advanced and not args.files:
             settings = Settings(
-                attenuation_db=FloatPrompt.ask("Inactive attenuation (dB)", default=-6.0),
-                frame_ms=args.frame_ms,
-                ambiguity_db=FloatPrompt.ask("Ownership ambiguity (dB)", default=9.0),
-                preroll_ms=args.preroll_ms,
-                hold_ms=args.hold_ms,
-                open_ms=FloatPrompt.ask("Opening time constant (ms)", default=50.0),
-                close_ms=FloatPrompt.ask("Closing time constant (ms)", default=500.0),
-                segment_seconds=args.segment_seconds,
+                attenuation_db=(
+                    args.attenuation
+                    if args.attenuation is not None
+                    else FloatPrompt.ask(
+                        "Inactive attenuation (dB)", default=settings.attenuation_db
+                    )
+                ),
+                frame_ms=settings.frame_ms,
+                ambiguity_db=(
+                    args.ambiguity
+                    if args.ambiguity is not None
+                    else FloatPrompt.ask("Ownership ambiguity (dB)", default=settings.ambiguity_db)
+                ),
+                preroll_ms=settings.preroll_ms,
+                hold_ms=settings.hold_ms,
+                open_ms=(
+                    args.open_ms
+                    if args.open_ms is not None
+                    else FloatPrompt.ask("Opening time constant (ms)", default=settings.open_ms)
+                ),
+                close_ms=(
+                    args.close_ms
+                    if args.close_ms is not None
+                    else FloatPrompt.ask("Closing time constant (ms)", default=settings.close_ms)
+                ),
+                segment_seconds=settings.segment_seconds,
             )
         with Progress(
             TextColumn("{task.description:<28}"),
@@ -310,7 +356,7 @@ def main() -> None:
                     paths=paths,
                     settings=settings,
                     preview_start=args.preview_start,
-                    preview_duration=args.preview_duration,
+                    preview_duration=args.preview_duration or 30.0,
                     overwrite=args.overwrite,
                     diagnostics=args.diagnostics,
                     output_directory=args.output_dir,
