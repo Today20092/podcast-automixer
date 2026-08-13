@@ -439,6 +439,11 @@ export function App() {
     await Promise.all(audio.current.map((a) => a.play()));
     setPlaying(true);
   }
+  function seekComparison(next: number) {
+    const position = Math.max(0, Math.min(comparison?.duration_seconds || 30, next));
+    setPlaybackPosition(position);
+    audio.current.forEach((item, index) => { item.currentTime = position + (audioOffsets.current[index] || 0); });
+  }
   async function preview() {
     try {
       setError("");
@@ -799,7 +804,7 @@ export function App() {
                   </Alert>
                 )}
                 {comparison?.diagnostic_timeline && (
-                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} playheadSeconds={playbackPosition} />
+                  <DiagnosticCanvas timeline={comparison.diagnostic_timeline} playheadSeconds={playbackPosition} onSeek={seekComparison} />
                 )}
                 <div className="transport">
                   <Button
@@ -829,10 +834,7 @@ export function App() {
                     aria-label="Playback position"
                     onValueChange={(value) => {
                       const next = (Array.isArray(value) ? value[0] : value) || 0;
-                      setPlaybackPosition(next);
-                      audio.current.forEach((item, index) => {
-                        item.currentTime = next + (audioOffsets.current[index] || 0);
-                      });
+                      seekComparison(next);
                     }}
                   />
                 </div>

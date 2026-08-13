@@ -51,8 +51,15 @@ function LaneCanvas({ lane, timeline, width, start, end, revision }: { lane: Lan
   return <canvas ref={ref} aria-label={`${lane.name}: Input Waveform, Gain-Adjusted Waveform, Speech Evidence, Automix Target, and Applied Gain`} />;
 }
 
-export function DiagnosticCanvas({ timeline, playheadSeconds = 0 }: { timeline: DiagnosticTimeline; playheadSeconds?: number }) {
+export function DiagnosticCanvas({ timeline, playheadSeconds = 0, onSeek }: { timeline: DiagnosticTimeline; playheadSeconds?: number; onSeek?: (seconds: number) => void }) {
   const viewport = useRef<HTMLDivElement>(null), [width, setWidth] = useState(800), [zoom, setZoom] = useState(1), [scroll, setScroll] = useState(0);
+  const playhead = useRef<HTMLDivElement>(null), drag = useRef(false), wasPlaying = useRef(false);
+  useEffect(() => {
+    const element = playhead.current;
+    if (!element) return;
+    const percent = timeline.duration_seconds ? playheadSeconds / timeline.duration_seconds * 100 : 0;
+    requestAnimationFrame(() => { element.style.transform = `translateX(${percent}%)`; });
+  }, [playheadSeconds, timeline.duration_seconds]);
   useEffect(() => { const element = viewport.current; if (!element) return; const resize = () => setWidth(element.clientWidth || 1); resize(); const observer = new ResizeObserver(resize); observer.observe(element); return () => observer.disconnect(); }, []);
   const contentWidth = width * zoom, start = scroll / contentWidth, end = Math.min(1, (scroll + width) / contentWidth);
   const frame = Math.min(Math.max(0, Math.floor(playheadSeconds * 1000 / timeline.frame_ms)), Math.max(0, (timeline.lanes[0]?.applied_gain_db.length || 1) - 1));
@@ -60,8 +67,9 @@ export function DiagnosticCanvas({ timeline, playheadSeconds = 0 }: { timeline: 
     <header><strong>Recording Set diagnosis</strong><span>Shared Applied Gain {timeline.db_domain.maximum} to {timeline.db_domain.minimum} dB</span></header>
     <div className="diagnostic-controls"><button onClick={() => { setZoom(1); viewport.current?.scrollTo({ left: 0 }); }}>Fit</button><button aria-label="Zoom out" onClick={() => setZoom(value => Math.max(1, value / 1.5))}>−</button><button aria-label="Zoom in" onClick={() => setZoom(value => Math.min(100, value * 1.5))}>+</button></div>
     <aside className="diagnostic-inspector" aria-label="Pinned inspector"><b>{playheadSeconds.toFixed(1)}s</b>{timeline.lanes.map(lane => <span key={lane.recording_identity}><i style={{ background: lane.color }} />{lane.name}: speech {lane.speech_evidence[frame] ? "yes" : "no"}, target {lane.automix_target[frame] ? "open" : "attenuated"}, gain {lane.applied_gain_db[frame]?.toFixed(1)} dB, {lane.applied_gain_db[frame] > timeline.db_domain.minimum + .5 ? "responding" : "settled"}</span>)}</aside>
-    <div className="diagnostic-viewport" ref={viewport} onScroll={event => setScroll(event.currentTarget.scrollLeft)}>
-      <div style={{ width: contentWidth }}>
+    <div className="diagnostic-viewport" ref={viewport} onScroll={event => setScroll(event.currentTarget.scrollLeft)} onPointerDown={event => { drag.current = true; wasPlaying.current = false; (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); onSeek?.(Math.max(0, Math.min(timeline.duration_seconds, (event.clientX - event.currentTarget.getBoundingClientRect().left + scroll) / contentWidth * timeline.duration_seconds))); }} onPointerMove={event => { if (!drag.current) return; onSeek?.(Math.max(0, Math.min(timeline.duration_seconds, (event.clientX - event.currentTarget.getBoundingClientRect().left + scroll) / contentWidth * timeline.duration_seconds))); }} onPointerUp={event => { drag.current = false; (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId); }} onKeyDown={event => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); onSeek?.(Math.max(0, Math.min(timeline.duration_seconds, playheadSeconds + (event.key === "ArrowRight" ? 1 : -1)))); } }} tabIndex={0}>
+      <div style={{ width: contentWidth, position: "relative" }}>
+        <div ref={playhead} className="diagnostic-playhead" aria-label="Shared playhead" />
         {timeline.lanes.map(lane => <article className={`diagnostic-lane ${lane.automix_target[frame] ? "is-open" : ""}`} key={lane.recording_identity}><header><strong><i style={{ background: lane.color }} />{lane.name}</strong></header><div className="diagnostic-sticky" style={{ width }}><LaneCanvas lane={lane} timeline={timeline} width={width} start={start} end={end} revision={`${lane.applied_gain_db.length}:${zoom}`} /></div></article>)}
       </div>
     </div>
