@@ -257,7 +257,9 @@ def test_comparison_playback_measures_programs_without_changing_audio(tmp_path: 
 
     assert comparison["standard"] == "ITU-R BS.1770 / EBU R 128"
     assert comparison["playback_gain_db"]["original"] < 0
-    assert sf.read(original, dtype="float32")[0].max() == pytest.approx(samples.max())
+    assert np.max(np.asarray(sf.read(original, dtype="float32")[0], dtype=np.float32)) == (
+        pytest.approx(samples.max())
+    )
 
 
 @pytest.mark.parametrize("path_count", [1, 2, 3])
@@ -325,7 +327,7 @@ def test_difference_switching_and_shared_output_protection_are_in_renderer() -> 
         encoding="utf-8"
     )
 
-    assert "data-program=\"difference\"" in renderer
+    assert 'data-program="difference"' in renderer
     assert "select('difference')" in renderer
     assert "context.createDynamicsCompressor()" in renderer
     assert "node.connect(protection)" in renderer

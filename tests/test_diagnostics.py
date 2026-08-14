@@ -15,9 +15,9 @@ def test_desktop_inline_scripts_parse() -> None:
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is required to validate the desktop renderer")
-    renderer = (
-        Path(__file__).parents[1] / "src" / "podcast_automixer" / "desktop.html"
-    ).read_text(encoding="utf-8")
+    renderer = (Path(__file__).parents[1] / "src" / "podcast_automixer" / "desktop.html").read_text(
+        encoding="utf-8"
+    )
     scripts = re.findall(r"<script>([\s\S]*?)</script>", renderer)
     assert scripts
     for script in scripts:

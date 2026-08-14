@@ -71,8 +71,15 @@ def test_json_write_config_uses_contract_and_normalized_artifact(
     assert payload["run"] == {"kind": "configuration"}
     assert payload["artifacts"] == [str(destination.resolve())]
     assert set(payload) == {
-        "schema_version", "cli_version", "status", "inputs", "run", "settings",
-        "artifacts", "warnings", "error",
+        "schema_version",
+        "cli_version",
+        "status",
+        "inputs",
+        "run",
+        "settings",
+        "artifacts",
+        "warnings",
+        "error",
     }
 
 
@@ -134,7 +141,14 @@ def test_json_success_reports_ordered_normalized_paths_and_all_artifacts(
 def test_contract_fixtures_have_stable_shape(name: str) -> None:
     payload = json.loads((Path(__file__).parent / "fixtures" / "automation" / name).read_text())
     assert set(payload) == {
-        "schema_version", "cli_version", "status", "inputs", "run", "settings",
-        "artifacts", "warnings", "error",
+        "schema_version",
+        "cli_version",
+        "status",
+        "inputs",
+        "run",
+        "settings",
+        "artifacts",
+        "warnings",
+        "error",
     }
     assert payload["schema_version"] == 1
