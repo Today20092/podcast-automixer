@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Automix Workstation Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#090b0f; --panel:#11141a; --panel2:#171b22; --line:#292f39;
+      --muted:#7d8796; --text:#e8edf4; --blue:#44a8ff; --cyan:#43d7c1;
+      --amber:#f2a635; --red:#ff6577; --track-head:164px; --inspector:270px;
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing:border-box }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text) }
+    button,input { font:inherit }
+    button { color:inherit; background:#171b22; border:1px solid #303743; border-radius:5px; cursor:pointer }
+    button:hover { border-color:#536071; background:#1d232c }
+    button:focus-visible,input:focus-visible { outline:2px solid var(--blue); outline-offset:2px }
+    .app { height:100dvh; display:grid; grid-template-rows:44px minmax(0,1fr) 30px; background:#0b0d11 }
+    .topbar { display:grid; grid-template-columns:250px 1fr 250px; align-items:center; padding:0 12px; border-bottom:1px solid var(--line); background:#101319 }
+    .brand { display:flex; gap:10px; align-items:center; font-weight:650; letter-spacing:.01em }
+    .mark { width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#62c7ff,#2766d7);box-shadow:0 0 18px #379fff55 }
+    .transport { justify-self:center; display:flex; align-items:center; gap:8px }
+    .transport button { width:30px;height:28px }
+    .transport .play { background:#eaf5ff;color:#07131f;border-color:#fff }
+    .counter { min-width:116px; font:600 12px ui-monospace,Consolas; color:#8bcaff }
+    .top-actions { justify-self:end; display:flex;gap:8px;align-items:center }
+    .primary { background:#197dcc;border-color:#39a9ff;padding:6px 13px }
+    .workspace { min-height:0; display:grid; grid-template-columns:220px minmax(0,1fr) var(--inspector); gap:1px; background:var(--line) }
+    .side,.inspector,.center { min-height:0;background:var(--panel) }
+    .side { display:grid;grid-template-rows:38px auto 1fr; overflow:hidden }
+    .panel-title { display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--line);font-size:12px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:#bbc4d0 }
+    .session { padding:12px;border-bottom:1px solid var(--line) }
+    .session strong { display:block;font-size:13px }
+    .session span { font-size:11px;color:var(--muted) }
+    .track-list { overflow:auto;padding:8px }
+    .track-item { display:grid;grid-template-columns:8px 1fr 24px;gap:9px;align-items:center;padding:9px 8px;border-radius:5px;margin-bottom:3px;font-size:12px }
+    .track-item.active { background:#202732 }
+    .dot { width:7px;height:7px;border-radius:50%;background:var(--track-color) }
+    .track-item small { display:block;color:var(--muted);margin-top:2px }
+    .center { display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden }
+    .overview { height:116px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 210px;background:linear-gradient(180deg,#121722,#0d1016) }
+    .gate-view { position:relative;overflow:hidden }
+    .gate-view canvas { width:100%;height:100%;display:block }
+    .gate-caption { position:absolute;left:14px;top:10px;font-size:11px;color:#aeb8c6 }
+    .attenuation { position:absolute;left:52%;top:9px;bottom:9px;width:21%;border-left:1px solid #4db8ff66;border-right:1px solid #4db8ff66;background:linear-gradient(90deg,#2a88d511,#2e98ff44,#2a88d511);pointer-events:none }
+    .overview-controls { border-left:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);align-items:center;padding:8px;gap:7px }
+    .mini-knob { text-align:center;font-size:9px;color:var(--muted);text-transform:uppercase }
+    .knob { --v:60%; width:46px;height:46px;border-radius:50%;margin:0 auto 5px;background:conic-gradient(from 225deg,var(--blue) 0 var(--v),#303642 var(--v) 75%,transparent 75%);padding:4px;box-shadow:inset 0 0 0 1px #48505c,0 4px 12px #0007 }
+    .knob:after { content:"";display:block;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 38% 30%,#39414d,#151920 68%);box-shadow:inset 0 1px 2px #ffffff22 }
+    .timeline-shell { min-height:0;display:grid;grid-template-rows:31px minmax(0,1fr) 20px;background:#0c0f14 }
+    .timeline-toolbar { display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid var(--line);font-size:11px }
+    .timeline-toolbar button { height:23px;padding:0 8px }
+    .zoom { margin-left:auto;display:flex;align-items:center;gap:7px;color:var(--muted) }
+    .zoom input { width:110px;accent-color:var(--blue) }
+    .timeline { position:relative;min-height:0;overflow:auto;scrollbar-color:#586373 #15191f;scrollbar-width:thin }
+    .timeline-content { position:relative;min-width:1180px }
+    .ruler { position:sticky;top:0;z-index:8;height:28px;margin-left:var(--track-head);background:#10141a;border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(12,1fr);font:10px ui-monospace,Consolas;color:#687383 }
+    .ruler span { border-left:1px solid #252b34;padding:7px 0 0 5px }
+    .lane { height:92px;display:grid;grid-template-columns:var(--track-head) minmax(1000px,1fr);border-bottom:1px solid #20252d }
+    .lane-head { position:sticky;left:0;z-index:6;background:#12161c;border-right:1px solid var(--line);padding:13px 12px;display:grid;grid-template-columns:8px 1fr;gap:9px;align-content:start }
+    .lane-head strong { font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+    .lane-head small { color:var(--muted);font-size:10px;margin-top:4px }
+    .meters { display:flex;gap:3px;margin-top:9px }
+    .meters i { display:block;width:18px;height:3px;background:#29313a }
+    .meters i.on { background:var(--track-color) }
+    .lane-canvas { position:relative;overflow:hidden;background:repeating-linear-gradient(90deg,transparent 0 calc(8.333% - 1px),#1b2028 calc(8.333% - 1px) 8.333%) }
+    .lane-canvas canvas { width:100%;height:100%;display:block }
+    .playhead { position:absolute;z-index:12;top:28px;bottom:0;left:calc(var(--track-head) + 31%);width:1px;background:#7ed2ff;box-shadow:0 0 0 1px #0a79c555,0 0 10px #55bfff88;pointer-events:none }
+    .playhead:before { content:"";position:absolute;top:-5px;left:-5px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #7ed2ff }
+    .scrollbar { height:20px;border-top:1px solid var(--line);display:flex;align-items:center;padding-left:calc(var(--track-head) + 6px);padding-right:8px }
+    .scroll-track { height:6px;background:#222933;border-radius:4px;flex:1;position:relative }
+    .scroll-thumb { position:absolute;left:12%;width:45%;height:100%;border-radius:4px;background:#637081 }
+    .inspector { overflow:auto;display:grid;grid-template-rows:38px auto auto 1fr }
+    .status-card { margin:10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#0d1117 }
+    .status-card .state { font-size:12px;color:var(--cyan);font-weight:650 }
+    .status-grid { display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:9px;font:11px ui-monospace,Consolas }
+    .status-grid span:nth-child(odd) { color:var(--muted) }
+    .controls { padding:0 10px 12px }
+    .control-group { border-top:1px solid var(--line);padding:12px 0 }
+    .control-group h3 { font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8f9aa8;margin:0 0 12px }
+    .control-row { display:grid;grid-template-columns:1fr 92px;align-items:center;margin:10px 0;font-size:11px }
+    .control-row output { justify-self:end;font:11px ui-monospace,Consolas;color:#b9c6d5 }
+    .control-row input { grid-column:1/-1;width:100%;margin-top:6px;accent-color:var(--blue) }
+    .preset { display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line) }
+    .preset select { flex:1;background:#121720;color:var(--text);border:1px solid #303743;border-radius:5px;padding:5px }
+    .bottombar { display:flex;align-items:center;padding:0 10px;border-top:1px solid var(--line);background:#101319;color:#7f8997;font-size:10px }
+    .bottombar .ready { color:var(--cyan);margin-right:16px }
+    .prototype-switcher { position:fixed;left:50%;bottom:38px;z-index:50;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:5px;background:#edf4fb;color:#111923;border-radius:7px;box-shadow:0 8px 30px #000a }
+    .prototype-switcher button { width:28px;height:26px;background:#fff;color:#111;border-color:#bdc8d4 }
+    .prototype-switcher strong { min-width:190px;text-align:center;font-size:11px }
+
+    /* Variant B: analysis instrument above a compact timeline. */
+    body.variant-b .workspace { grid-template-columns:190px minmax(0,1fr) 320px }
+    body.variant-b .center { grid-template-rows:minmax(220px,42%) minmax(0,1fr) }
+    body.variant-b .overview { height:auto;grid-template-columns:1fr 300px }
+    body.variant-b .overview-controls { grid-template-columns:repeat(2,1fr) }
+    body.variant-b .timeline-shell { border-top:1px solid #3a424f }
+    body.variant-b .lane { height:62px }
+    body.variant-b .lane-head { padding-top:8px }
+    body.variant-b .lane-head small,.variant-b .meters { display:none }
+
+    /* Variant C: OpenCut-like bays with the timeline owning the bottom half. */
+    body.variant-c .workspace { grid-template-columns:240px minmax(0,1fr) }
+    body.variant-c .center { grid-template-rows:minmax(0,1fr) 50% }
+    body.variant-c .overview { height:auto;grid-template-columns:1fr 240px }
+    body.variant-c .inspector { position:absolute;right:0;top:44px;bottom:30px;width:285px;z-index:20;box-shadow:-8px 0 24px #0008;border-left:1px solid var(--line);transform:translateX(0) }
+    body.variant-c .center { padding-right:285px }
+    body.variant-c .lane { height:74px }
+
+    @media (max-width:1100px) {
+      :root { --inspector:235px;--track-head:140px }
+      .workspace { grid-template-columns:180px minmax(0,1fr) var(--inspector) }
+      .topbar { grid-template-columns:190px 1fr 190px }
+      .overview-controls { display:none }
+      .overview { grid-template-columns:1fr }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="mark"></span><span>Automix Workstation</span></div>
+      <div class="transport">
+        <button title="Previous">│◀</button>
+        <button class="play" id="play" title="Play or pause">▶</button>
+        <button title="Next">▶│</button>
+        <span class="counter" id="counter">00:00:12.480</span>
+        <button title="Loop">↻</button>
+      </div>
+      <div class="top-actions"><button>A/B</button><button class="primary">Render mix</button></div>
+    </header>
+    <section class="workspace">
+      <aside class="side">
+        <div class="panel-title"><span>Recording set</span><button>＋</button></div>
+        <div class="session"><strong>Episode 056</strong><span>8 microphones · 48 kHz · 01:12:36</span></div>
+        <div class="track-list" id="trackList"></div>
+      </aside>
+
+      <section class="center">
+        <section class="overview">
+          <div class="gate-view">
+            <canvas id="overviewCanvas"></canvas>
+            <span class="gate-caption">Adaptive bleed attenuation · selected microphone</span>
+            <span class="attenuation"></span>
+          </div>
+          <div class="overview-controls">
+            <div class="mini-knob"><div class="knob" style="--v:52%"></div>Range</div>
+            <div class="mini-knob"><div class="knob" style="--v:38%"></div>Attack</div>
+            <div class="mini-knob"><div class="knob" style="--v:64%"></div>Release</div>
+            <div class="mini-knob"><div class="knob" style="--v:28%"></div>Hold</div>
+            <div class="mini-knob"><div class="knob" style="--v:44%"></div>Lookahead</div>
+            <div class="mini-knob"><div class="knob" style="--v:58%"></div>Evidence</div>
+          </div>
+        </section>
+        <section class="timeline-shell">
+          <div class="timeline-toolbar">
+            <button>Fit</button><button>−</button><button>＋</button>
+            <button>Original</button><button class="primary">Automixed</button><button>Difference</button>
+            <div class="zoom"><span>Zoom</span><input id="zoom" type="range" min="100" max="220" value="118"></div>
+          </div>
+          <div class="timeline" id="timeline">
+            <div class="timeline-content" id="timelineContent">
+              <div class="ruler" id="ruler"></div>
+              <div id="lanes"></div>
+              <div class="playhead" id="playhead"></div>
+            </div>
+          </div>
+          <div class="scrollbar"><div class="scroll-track"><span class="scroll-thumb"></span></div></div>
+        </section>
+      </section>
+
+      <aside class="inspector">
+        <div class="panel-title"><span>Automix controls</span><button>•••</button></div>
+        <div class="preset"><select><option>Podcast dialogue</option><option>Natural rooms</option><option>Aggressive cleanup</option></select><button>Save</button></div>
+        <div class="status-card">
+          <div class="state">ATTENUATING · MIC 03</div>
+          <div class="status-grid">
+            <span>Position</span><b id="position">12.48 s</b>
+            <span>Speech</span><b>Not detected</b>
+            <span>Competing speech</span><b>Mic 01</b>
+            <span>Applied gain</span><b>−17.6 dB</b>
+          </div>
+        </div>
+        <div class="controls" id="controls"></div>
+      </aside>
+    </section>
+    <footer class="bottombar"><span class="ready">● Analysis ready</span><span>Preview uses nondestructive cached analysis</span><span style="margin-left:auto">CPU 8% · 60 FPS</span></footer>
+  </main>
+
+  <nav class="prototype-switcher" aria-label="Prototype variants">
+    <button id="prevVariant">←</button><strong id="variantLabel"></strong><button id="nextVariant">→</button>
+  </nav>
+
+  <script>
+    const tracks = [
+      ['Host', '#44a8ff'], ['Guest A', '#f2a635'], ['Guest B', '#43d7c1'], ['Guest C', '#c184ff'],
+      ['Guest D', '#ff6577'], ['Boom', '#84d65a'], ['Room L', '#70b7c9'], ['Room R', '#e188c8']
+    ];
+    const variants = { A:'Timeline first', B:'Gate focus', C:'Editing bay' };
+    const params = [
+      ['Maximum attenuation','−18.0 dB',0,30,18], ['Attack','18 ms',0,200,18],
+      ['Hold','120 ms',0,500,120], ['Release','420 ms',40,1500,420],
+      ['Lookahead','8 ms',0,30,8], ['Evidence sensitivity','72%',0,100,72]
+    ];
+    let playing = false, time = 12.48, raf = 0;
+    const query = new URLSearchParams(location.search);
+    let variant = (query.get('variant') || 'A').toUpperCase();
+    if (!variants[variant]) variant = 'A';
+
+    function setVariant(next) {
+      variant = next;
+      document.body.className = 'variant-' + next.toLowerCase();
+      document.getElementById('variantLabel').textContent = next + ' · ' + variants[next];
+      query.set('variant', next);
+      history.replaceState(null,'','?' + query.toString());
+      requestAnimationFrame(drawAll);
+    }
+    function cycle(step) {
+      const keys = Object.keys(variants);
+      setVariant(keys[(keys.indexOf(variant) + step + keys.length) % keys.length]);
+    }
+
+    function seeded(i, x) {
+      const a = Math.sin(x * (0.073 + i*.007) + i*8.1);
+      const b = Math.sin(x * (0.19 + i*.011) + i*2.7);
+      const speech = Math.max(0, Math.sin(x*.021 + i*1.9) - .18);
+      return (a*.45 + b*.24) * speech;
+    }
+    function size(canvas) {
+      const dpr = devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1,rect.width*dpr); canvas.height = Math.max(1,rect.height*dpr);
+      const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return [ctx,rect.width,rect.height];
+    }
+    function drawOverview() {
+      const canvas = document.getElementById('overviewCanvas'), [ctx,w,h] = size(canvas);
+      ctx.clearRect(0,0,w,h);
+      for(let g=1;g<5;g++){ctx.strokeStyle='#26303b';ctx.beginPath();ctx.moveTo(0,h*g/5);ctx.lineTo(w,h*g/5);ctx.stroke()}
+      ctx.beginPath();ctx.moveTo(0,h*.52);
+      for(let x=0;x<w;x+=2){const y=h*.52-seeded(2,x)*h*.48;ctx.lineTo(x,y)}
+      ctx.lineTo(w,h*.52);ctx.closePath();ctx.fillStyle='#7087b44a';ctx.fill();
+      ctx.strokeStyle='#8eb3e0aa';ctx.stroke();
+      ctx.beginPath();
+      for(let x=0;x<w;x+=3){const gain=(x>w*.52&&x<w*.73)?.28:1;const y=h*.52-seeded(2,x)*h*.42*gain;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+      ctx.strokeStyle='#5cc0ff';ctx.lineWidth=1.4;ctx.stroke();
+    }
+    function drawLane(canvas,i,color) {
+      const [ctx,w,h]=size(canvas);ctx.clearRect(0,0,w,h);
+      const mid=h*.35;
+      ctx.beginPath();
+      for(let x=0;x<w;x+=2){const y=mid-seeded(i,x+i*51)*h*.28;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+      for(let x=w;x>=0;x-=2){ctx.lineTo(x,mid+seeded(i,x+i*51)*h*.28)}
+      ctx.closePath();ctx.fillStyle=color+'44';ctx.fill();
+      ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+      for(let x=0;x<w;x+=4){const active=Math.sin(x*.039+i)>-.28;if(active){ctx.fillStyle=i===2?'#30485c':'#22313f';ctx.fillRect(x,h*.69,3,5)}}
+      const windows=[[.12,.2],[.31,.46],[.59,.67],[.78,.9]];
+      windows.forEach((r,n)=>{const duck=(n+i)%3!==0;ctx.fillStyle=duck?'#2d86c7':'#2dca9a';ctx.fillRect(w*r[0],h*.82,w*(r[1]-r[0]),4)});
+      ctx.beginPath();ctx.moveTo(0,h*.94);
+      for(let x=0;x<w;x+=4){const duck=Math.sin(x*.025+i*2)<-.15;ctx.lineTo(x,h*.94-(duck?11:1))}
+      ctx.strokeStyle=color;ctx.globalAlpha=.75;ctx.stroke();ctx.globalAlpha=1;
+    }
+    function drawAll() {
+      drawOverview();
+      document.querySelectorAll('.lane-canvas canvas').forEach((c,i)=>drawLane(c,i,tracks[i][1]));
+    }
+    function mount() {
+      document.getElementById('trackList').innerHTML = tracks.map((t,i)=>
+        '<div class="track-item '+(i===2?'active':'')+'" style="--track-color:'+t[1]+'"><span class="dot"></span><div><b>MIC '+String(i+1).padStart(2,'0')+' · '+t[0]+'</b><small>'+(i===2?'Selected · attenuating':'Analysis ready')+'</small></div><span>◉</span></div>'
+      ).join('');
+      document.getElementById('ruler').innerHTML = Array.from({length:12},(_,i)=>'<span>'+String(i*5).padStart(2,'0')+':00</span>').join('');
+      document.getElementById('lanes').innerHTML = tracks.map((t,i)=>
+        '<div class="lane" style="--track-color:'+t[1]+'"><div class="lane-head"><span class="dot"></span><div><strong>MIC '+String(i+1).padStart(2,'0')+' · '+t[0]+'</strong><small>'+(i===2?'−17.6 dB · competing speech':'0.0 dB · open')+'</small><div class="meters"><i class="on"></i><i class="on"></i><i class="'+(i%2?'on':'')+'"></i><i></i></div></div></div><div class="lane-canvas"><canvas></canvas></div></div>'
+      ).join('');
+      document.getElementById('controls').innerHTML = params.map((p,i)=>
+        '<div class="control-group"><div class="control-row"><b>'+p[0]+'</b><output id="out'+i+'">'+p[1]+'</output><input data-index="'+i+'" type="range" min="'+p[2]+'" max="'+p[3]+'" value="'+p[4]+'"></div></div>'
+      ).join('');
+      document.querySelectorAll('.control-row input').forEach(input=>input.addEventListener('input',e=>{
+        const i=+e.target.dataset.index, units=i===0?'−'+(+e.target.value).toFixed(1)+' dB':i<5?e.target.value+' ms':e.target.value+'%';
+        document.getElementById('out'+i).textContent=units;
+      }));
+      document.getElementById('zoom').addEventListener('input',e=>{
+        document.getElementById('timelineContent').style.width=e.target.value+'%';
+        requestAnimationFrame(drawAll);
+      });
+      document.getElementById('timeline').addEventListener('pointerdown',e=>{
+        const rect=e.currentTarget.getBoundingClientRect(), p=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+        time=p*60; updateTime();
+      });
+      setVariant(variant); setTimeout(drawAll,50);
+    }
+    function updateTime() {
+      const p=(time%60)/60;
+      document.getElementById('playhead').style.left='calc(var(--track-head) + '+(p*100).toFixed(2)+'%)';
+      document.getElementById('position').textContent=time.toFixed(2)+' s';
+      document.getElementById('counter').textContent='00:00:'+String(Math.floor(time)).padStart(2,'0')+'.'+String(Math.floor(time%1*1000)).padStart(3,'0');
+    }
+    function tick(now) {
+      if(!tick.last)tick.last=now; time+=(now-tick.last)/1000;tick.last=now;updateTime();
+      if(playing)raf=requestAnimationFrame(tick);
+    }
+    document.getElementById('play').addEventListener('click',e=>{
+      playing=!playing;e.target.textContent=playing?'Ⅱ':'▶';tick.last=0;if(playing)raf=requestAnimationFrame(tick);else cancelAnimationFrame(raf);
+    });
+    document.getElementById('prevVariant').onclick=()=>cycle(-1);
+    document.getElementById('nextVariant').onclick=()=>cycle(1);
+    addEventListener('keydown',e=>{
+      if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
+      if(e.key==='ArrowLeft')cycle(-1);if(e.key==='ArrowRight')cycle(1);if(e.key===' '){e.preventDefault();document.getElementById('play').click()}
+    });
+    addEventListener('resize',()=>requestAnimationFrame(drawAll));
+    mount();
+  </script>
+</body>
+</html>
