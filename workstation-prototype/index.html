@@ -41,15 +41,11 @@
     .dot { width:7px;height:7px;border-radius:50%;background:var(--track-color) }
     .track-item small { display:block;color:var(--muted);margin-top:2px }
     .center { display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden }
-    .overview { height:116px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 210px;background:linear-gradient(180deg,#121722,#0d1016) }
+    .overview { height:116px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr;background:linear-gradient(180deg,#121722,#0d1016) }
     .gate-view { position:relative;overflow:hidden }
     .gate-view canvas { width:100%;height:100%;display:block }
     .gate-caption { position:absolute;left:14px;top:10px;font-size:11px;color:#aeb8c6 }
     .attenuation { position:absolute;left:52%;top:9px;bottom:9px;width:21%;border-left:1px solid #4db8ff66;border-right:1px solid #4db8ff66;background:linear-gradient(90deg,#2a88d511,#2e98ff44,#2a88d511);pointer-events:none }
-    .overview-controls { border-left:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);align-items:center;padding:8px;gap:7px }
-    .mini-knob { text-align:center;font-size:9px;color:var(--muted);text-transform:uppercase }
-    .knob { --v:60%; width:46px;height:46px;border-radius:50%;margin:0 auto 5px;background:conic-gradient(from 225deg,var(--blue) 0 var(--v),#303642 var(--v) 75%,transparent 75%);padding:4px;box-shadow:inset 0 0 0 1px #48505c,0 4px 12px #0007 }
-    .knob:after { content:"";display:block;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 38% 30%,#39414d,#151920 68%);box-shadow:inset 0 1px 2px #ffffff22 }
     .timeline-shell { min-height:0;display:grid;grid-template-rows:31px minmax(0,1fr) 20px;background:#0c0f14 }
     .timeline-toolbar { display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid var(--line);font-size:11px }
     .timeline-toolbar button { height:23px;padding:0 8px }
@@ -78,12 +74,11 @@
     .status-card .state { font-size:12px;color:var(--cyan);font-weight:650 }
     .status-grid { display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:9px;font:11px ui-monospace,Consolas }
     .status-grid span:nth-child(odd) { color:var(--muted) }
-    .controls { padding:0 10px 12px }
-    .control-group { border-top:1px solid var(--line);padding:12px 0 }
-    .control-group h3 { font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8f9aa8;margin:0 0 12px }
-    .control-row { display:grid;grid-template-columns:1fr 92px;align-items:center;margin:10px 0;font-size:11px }
-    .control-row output { justify-self:end;font:11px ui-monospace,Consolas;color:#b9c6d5 }
-    .control-row input { grid-column:1/-1;width:100%;margin-top:6px;accent-color:var(--blue) }
+    .controls { padding:14px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px;align-content:start }
+    .control-group { min-width:0;text-align:center }
+    .control-row { display:grid;justify-items:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#9ca8b7 }
+    .control-row:before { content:"";width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#39414d 0 51%,#171c23 52% 63%,transparent 64%),conic-gradient(from 225deg,var(--blue) 0 var(--p),#303642 var(--p) 75%,transparent 75%);box-shadow:inset 0 0 0 1px #48505c,0 5px 14px #0008 }
+    .control-row output { font:600 11px ui-monospace,Consolas;color:#d3deea;text-transform:none;letter-spacing:0 }
     .preset { display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line) }
     .preset select { flex:1;background:#121720;color:var(--text);border:1px solid #303743;border-radius:5px;padding:5px }
     .bottombar { display:flex;align-items:center;padding:0 10px;border-top:1px solid var(--line);background:#101319;color:#7f8997;font-size:10px }
@@ -93,14 +88,16 @@
     .prototype-switcher strong { min-width:190px;text-align:center;font-size:11px }
 
     /* Variant B: analysis instrument above a compact timeline. */
-    body.variant-b .workspace { grid-template-columns:190px minmax(0,1fr) 320px }
-    body.variant-b .center { grid-template-rows:minmax(220px,42%) minmax(0,1fr) }
-    body.variant-b .overview { height:auto;grid-template-columns:1fr 300px }
-    body.variant-b .overview-controls { grid-template-columns:repeat(2,1fr) }
+    body.variant-b .workspace { grid-template-columns:178px minmax(0,1fr) 250px }
+    body.variant-b .center { grid-template-rows:minmax(330px,62%) minmax(0,1fr) }
+    body.variant-b .overview { height:auto }
     body.variant-b .timeline-shell { border-top:1px solid #3a424f }
-    body.variant-b .lane { height:62px }
+    body.variant-b .lane { height:48px }
     body.variant-b .lane-head { padding-top:8px }
     body.variant-b .lane-head small,.variant-b .meters { display:none }
+    body.variant-b .gate-caption { font-size:12px;color:#c5cfdb }
+    body.variant-b .status-card { margin-bottom:0 }
+    body.variant-b .inspector { grid-template-rows:38px auto auto minmax(0,1fr) }
 
     /* Variant C: OpenCut-like bays with the timeline owning the bottom half. */
     body.variant-c .workspace { grid-template-columns:240px minmax(0,1fr) }
@@ -145,14 +142,6 @@
             <canvas id="overviewCanvas"></canvas>
             <span class="gate-caption">Adaptive bleed attenuation · selected microphone</span>
             <span class="attenuation"></span>
-          </div>
-          <div class="overview-controls">
-            <div class="mini-knob"><div class="knob" style="--v:52%"></div>Range</div>
-            <div class="mini-knob"><div class="knob" style="--v:38%"></div>Attack</div>
-            <div class="mini-knob"><div class="knob" style="--v:64%"></div>Release</div>
-            <div class="mini-knob"><div class="knob" style="--v:28%"></div>Hold</div>
-            <div class="mini-knob"><div class="knob" style="--v:44%"></div>Lookahead</div>
-            <div class="mini-knob"><div class="knob" style="--v:58%"></div>Evidence</div>
           </div>
         </section>
         <section class="timeline-shell">
@@ -246,14 +235,23 @@
       for(let x=0;x<w;x+=3){const gain=(x>w*.52&&x<w*.73)?.28:1;const y=h*.52-seeded(2,x)*h*.42*gain;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
       ctx.strokeStyle='#5cc0ff';ctx.lineWidth=1.4;ctx.stroke();
     }
+    function traceWave(ctx,w,h,i,mid,scale,gain,color,fill) {
+      ctx.beginPath();
+      for(let x=0;x<w;x+=2){const y=mid-seeded(i,x+i*51)*scale*gain(x,w);x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+      for(let x=w;x>=0;x-=2){ctx.lineTo(x,mid+seeded(i,x+i*51)*scale*gain(x,w))}
+      ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+    }
     function drawLane(canvas,i,color) {
       const [ctx,w,h]=size(canvas);ctx.clearRect(0,0,w,h);
       const mid=h*.35;
-      ctx.beginPath();
-      for(let x=0;x<w;x+=2){const y=mid-seeded(i,x+i*51)*h*.28;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
-      for(let x=w;x>=0;x-=2){ctx.lineTo(x,mid+seeded(i,x+i*51)*h*.28)}
-      ctx.closePath();ctx.fillStyle=color+'44';ctx.fill();
-      ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+      if(variant==='B'){
+        const duck=(x,width)=>((x/width>.12&&x/width<.26)||(x/width>.51&&x/width<.68)||(x/width>.82&&x/width<.94))?.24:1;
+        [[.12,.26],[.51,.68],[.82,.94]].forEach(r=>{ctx.fillStyle='#10345488';ctx.fillRect(w*r[0],0,w*(r[1]-r[0]),h)});
+        traceWave(ctx,w,h,i,h*.5,h*.38,()=>1,'#667586','#52606f33');
+        traceWave(ctx,w,h,i,h*.5,h*.38,duck,color,color+'44');
+        return;
+      }
+      traceWave(ctx,w,h,i,mid,h*.28,()=>1,color,color+'44');
       for(let x=0;x<w;x+=4){const active=Math.sin(x*.039+i)>-.28;if(active){ctx.fillStyle=i===2?'#30485c':'#22313f';ctx.fillRect(x,h*.69,3,5)}}
       const windows=[[.12,.2],[.31,.46],[.59,.67],[.78,.9]];
       windows.forEach((r,n)=>{const duck=(n+i)%3!==0;ctx.fillStyle=duck?'#2d86c7':'#2dca9a';ctx.fillRect(w*r[0],h*.82,w*(r[1]-r[0]),4)});
@@ -274,12 +272,8 @@
         '<div class="lane" style="--track-color:'+t[1]+'"><div class="lane-head"><span class="dot"></span><div><strong>MIC '+String(i+1).padStart(2,'0')+' · '+t[0]+'</strong><small>'+(i===2?'−17.6 dB · competing speech':'0.0 dB · open')+'</small><div class="meters"><i class="on"></i><i class="on"></i><i class="'+(i%2?'on':'')+'"></i><i></i></div></div></div><div class="lane-canvas"><canvas></canvas></div></div>'
       ).join('');
       document.getElementById('controls').innerHTML = params.map((p,i)=>
-        '<div class="control-group"><div class="control-row"><b>'+p[0]+'</b><output id="out'+i+'">'+p[1]+'</output><input data-index="'+i+'" type="range" min="'+p[2]+'" max="'+p[3]+'" value="'+p[4]+'"></div></div>'
+        '<div class="control-group"><div class="control-row" style="--p:'+Math.round((p[4]-p[2])/(p[3]-p[2])*75)+'%"><b>'+p[0]+'</b><output id="out'+i+'">'+p[1]+'</output></div></div>'
       ).join('');
-      document.querySelectorAll('.control-row input').forEach(input=>input.addEventListener('input',e=>{
-        const i=+e.target.dataset.index, units=i===0?'−'+(+e.target.value).toFixed(1)+' dB':i<5?e.target.value+' ms':e.target.value+'%';
-        document.getElementById('out'+i).textContent=units;
-      }));
       document.getElementById('zoom').addEventListener('input',e=>{
         document.getElementById('timelineContent').style.width=e.target.value+'%';
         requestAnimationFrame(drawAll);
