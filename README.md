@@ -50,7 +50,7 @@ and bit depth.
 
 4. Paste each WAV path when prompted, then press Enter when done (Windows terminals also
    support drag-and-drop).
-5. Listen to the new `_auto-mixed.wav` files written beside the originals, and open
+5. Listen to the new `-automixed.wav` files written beside the originals, and open
    `podcast-automix-report.html` to review what the automixer changed.
 
 The original recordings are never modified. For a 30-second test before processing the
@@ -126,7 +126,7 @@ cutting or otherwise editing the program:
 2. Synchronize everything and place each speaker's microphone on its own aligned track.
 3. Before making cuts, export or locate the synchronized full-length microphone WAV files.
 4. Run Podcast Automixer on those microphone stems.
-5. Review the reports and listen to the generated `_auto-mixed.wav` files.
+5. Review the reports and listen to the generated `-automixed.wav` files.
 6. Replace each original microphone stem with its matching auto-mixed replacement.
 7. Confirm that the replacement tracks remain perfectly synchronized, then link audio and
    video where appropriate.
@@ -253,17 +253,34 @@ podcast-automix '/Users/me/Audio Files/A01.wav' '/Users/me/Audio Files/A02.wav' 
 podcast-automix '/home/me/Audio Files/A01.wav' '/home/me/Audio Files/A02.wav' '/home/me/Audio Files/A03.wav'
 ```
 
+### CLI modes
+
+- **Guided:** Run `podcast-automix` without file arguments to enter WAV paths interactively.
+  Add `--advanced` to choose Automix Engine settings at the prompts.
+- **Direct:** Pass WAV paths on the command line for normal progress output and interactive
+  overwrite confirmation.
+- **Unattended:** Add `--non-interactive` with at least two WAV paths. The command never prompts;
+  existing artifacts cause an error unless `--overwrite` is also supplied. Add `--quiet` to hide
+  progress and input summaries while still printing final artifact paths, and `--no-color` when
+  the surrounding terminal or log does not support styled output.
+- **JSON automation:** Add `--json` with at least two WAV paths for the stable, noninteractive
+  JSON result and exit-status contract described below.
+- **Configuration:** Use `--write-config PATH` to create reusable engine settings and
+  `--config PATH` to load them. Explicit setting flags override loaded values.
+
+Use `podcast-automix --version` to print the installed CLI version.
+
 Use `--` before positional arguments when a relative filename begins with `-`. Relative paths
 are resolved from the terminal's current working directory. Symbolic links are resolved before
 processing, so default outputs are written beside the link target, not beside the symlink. Outputs use
-the `_auto-mixed.wav` suffix, and existing files are never silently replaced. Use
+the `-automixed.wav` suffix, and existing files are never silently replaced. Use
 `--preview-start 60 --preview-duration 30` for a short preview and `--advanced` to expose tuning
 controls. Pass `--output-dir DIRECTORY` to write every WAV, report, and optional diagnostic there
 instead; the directory must already exist.
 
 Without `--output-dir`, each run writes:
 
-- One `_auto-mixed.wav` replacement beside each input microphone.
+- One `-automixed.wav` replacement beside each input microphone.
 - `podcast-automix-report.html`, a self-contained visual report beside the first input.
 - `podcast-automix-report.json`, a machine-readable report beside the first input.
 - `podcast-automix-diagnostics.csv` beside the first input when `--diagnostics` is supplied.
