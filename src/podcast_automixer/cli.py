@@ -438,11 +438,11 @@ def main() -> None:
         if not args.quiet:
             console.print("[green]Complete.[/green]")
         for output in result.outputs:
-            console.print(f"  {output}")
-        console.print(f"  {result.report}")
-        console.print(f"  {result.html_report}")
+            console.print(f"  {output}", soft_wrap=True)
+        console.print(f"  {result.report}", soft_wrap=True)
+        console.print(f"  {result.html_report}", soft_wrap=True)
         if result.diagnostics:
-            console.print(f"  {result.diagnostics}")
+            console.print(f"  {result.diagnostics}", soft_wrap=True)
     except KeyboardInterrupt:
         if automation_mode:
             from .automation import result, write

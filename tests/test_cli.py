@@ -268,7 +268,7 @@ def test_quiet_routes_output_directory_and_keeps_artifact_paths(
         )
 
     output = StringIO()
-    monkeypatch.setattr(cli, "console", Console(file=output, color_system=None))
+    monkeypatch.setattr(cli, "console", Console(file=output, color_system=None, width=20))
     monkeypatch.setattr(cli, "run_automix", run)
     monkeypatch.setattr(
         "sys.argv",
