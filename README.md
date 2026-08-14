@@ -30,8 +30,8 @@ automixer, reviewing its reports, and replacing the original tracks before editi
 
 ## Quick start
 
-Podcast Automixer is currently a command-line app. You need at least two synchronized mono
-WAV files—one isolated microphone recording per speaker—with matching sample rate, length,
+Podcast Automixer is currently a command-line app. You need at least one mono WAV file. When
+mixing multiple isolated microphone recordings, they must have matching sample rate, length,
 and bit depth.
 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/), then open a new
@@ -75,7 +75,7 @@ untouched, and the replacement files can be inspected before they enter the edit
 
 ## Features
 
-- Automixes two or more synchronized, single-speaker WAV microphone stems.
+- Attenuates one voiceover track or automixes multiple synchronized, single-speaker WAV stems.
 - Keeps active microphones at unity gain.
 - Smoothly attenuates microphones that are clearly inactive.
 - Preserves input duration, synchronization, sample rate, and channel layout.
@@ -225,7 +225,7 @@ Command Prompt terminals; terminal drag-and-drop is not advertised on macOS or L
 shells may insert escape characters. On those systems, paste or type the unescaped path at
 each prompt instead.
 
-For scripting, pass two or more positional arguments and use the quoting rules of the current
+For scripting, pass one or more positional arguments and use the quoting rules of the current
 shell.
 These examples all include paths containing spaces:
 
@@ -292,7 +292,7 @@ Run `podcast-automix --help` for the complete command-line reference.
 ## Roadmap
 
 - [x] Conservative voice-activity-based automixing.
-- [x] Timing-identical replacement WAV files for two or more synchronized microphones.
+- [x] Timing-identical replacement WAV files for one or more microphone tracks.
 - [x] Preview rendering and advanced command-line settings.
 - [x] JSON, HTML, and optional CSV diagnostics.
 - [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
@@ -338,3 +338,5 @@ JSON, and optional CSV artifacts.
 ## License
 
 Podcast Automixer is free and open-source software licensed under the [MIT License](LICENSE).
+
+The Diagnostic Timeline acknowledges techniques adapted from [OpenCut Classic](https://github.com/OpenCut-app/opencut-classic/tree/cf5e79e919144200294fb9fed22a222592a0aeea), used under its MIT license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the pinned source and notice.

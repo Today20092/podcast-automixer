@@ -98,8 +98,8 @@ def test_analysis_is_segment_size_independent_across_speech_boundaries(
     assert one_second.samples_per_frame == 320
 
 
-@pytest.mark.parametrize("track_count", [2, 4])
-def test_analysis_supports_two_or_more_tracks(
+@pytest.mark.parametrize("track_count", [1, 2, 4])
+def test_analysis_supports_one_or_more_tracks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, track_count: int
 ) -> None:
     samplerate = 16000
@@ -402,9 +402,9 @@ def test_validation_rejects_mismatched_frame_counts(tmp_path: Path) -> None:
         inspect_inputs(paths)
 
 
-def test_validation_requires_at_least_two_files(tmp_path: Path) -> None:
-    with pytest.raises(AutomixError, match="At least two"):
-        inspect_inputs([tmp_path / "one.wav"])
+def test_validation_requires_at_least_one_file() -> None:
+    with pytest.raises(AutomixError, match="At least one"):
+        inspect_inputs([])
 
 
 def test_validation_accepts_more_than_three_files(tmp_path: Path) -> None:

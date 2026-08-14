@@ -33,7 +33,9 @@ class RenderedAudioArtifacts:
         confirm_overwrite: OverwriteConfirmation | None = None,
         additional_artifacts: tuple[str, ...] = (),
     ) -> RenderedAudioArtifacts:
-        suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
+        # Preview artifacts deliberately retain their established disposable name.
+        # Editor deliverables use a distinct, source-derived name.
+        suffix = "_auto-mixed-preview.wav" if preview else "-automixed.wav"
         paths = [
             (output_directory or info.path.parent) / f"{info.path.stem}{suffix}" for info in infos
         ]

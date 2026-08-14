@@ -69,7 +69,7 @@ def test_rendered_artifacts_preserve_audio_structure_metadata_and_preview_offset
 
 def test_collision_policy_is_owned_by_rendered_artifacts(tmp_path: Path) -> None:
     infos = inspect_inputs(_inputs(tmp_path))
-    collision = tmp_path / "track-0_auto-mixed.wav"
+    collision = tmp_path / "track-0-automixed.wav"
     collision.write_bytes(b"existing")
     confirmations: list[int] = []
 
@@ -105,7 +105,7 @@ def test_failed_render_preserves_destination_and_removes_temporary_file(
     tmp_path: Path,
 ) -> None:
     infos = inspect_inputs(_inputs(tmp_path))
-    destination = tmp_path / "track-0_auto-mixed.wav"
+    destination = tmp_path / "track-0-automixed.wav"
     destination.write_bytes(b"existing")
     artifacts = RenderedAudioArtifacts.prepare(infos, preview=False, overwrite=True)
 
