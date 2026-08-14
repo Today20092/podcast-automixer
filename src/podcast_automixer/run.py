@@ -69,6 +69,11 @@ def run_automix(
         overwrite=request.overwrite,
         output_directory=request.output_directory,
         confirm_overwrite=confirm_overwrite,
+        additional_artifacts=(
+            "podcast-automix-report.json",
+            "podcast-automix-report.html",
+            *(("podcast-automix-diagnostics.csv",) if request.diagnostics else ()),
+        ),
     )
     outputs = rendered_audio.paths
 

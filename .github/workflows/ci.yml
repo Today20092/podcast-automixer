@@ -37,8 +37,24 @@ jobs:
           - os: windows-latest
             arch: AMD64
             machines: amd64,x86_64
+            python-version: "3.11"
+          - os: windows-latest
+            arch: AMD64
+            machines: amd64,x86_64
+            python-version: "3.12"
+          - os: windows-latest
+            arch: AMD64
+            machines: amd64,x86_64
             python-version: "3.13"
             package-smoke: true
+          - os: macos-14
+            arch: arm64
+            machines: arm64,aarch64
+            python-version: "3.11"
+          - os: macos-14
+            arch: arm64
+            machines: arm64,aarch64
+            python-version: "3.12"
           - os: macos-14
             arch: arm64
             machines: arm64,aarch64
@@ -70,7 +86,7 @@ jobs:
       - name: Smoke-test installed wheel command
         if: matrix.package-smoke
         shell: bash
-        run: uv run --isolated --no-project --with dist/*.whl podcast-automix --help
+        run: uv run --isolated --no-project --with dist/*.whl python scripts/smoke_wheel.py
       - name: Smoke-test source distribution
         if: matrix.package-smoke
         shell: bash
