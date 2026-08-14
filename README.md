@@ -30,8 +30,8 @@ automixer, reviewing its reports, and replacing the original tracks before editi
 
 ## Quick start
 
-Podcast Automixer is currently a command-line app. You need at least two synchronized mono
-WAV files—one isolated microphone recording per speaker—with matching sample rate, length,
+Podcast Automixer is currently a command-line app. You need at least one mono WAV file. When
+mixing multiple isolated microphone recordings, they must have matching sample rate, length,
 and bit depth.
 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/), then open a new
@@ -50,7 +50,7 @@ and bit depth.
 
 4. Paste each WAV path when prompted, then press Enter when done (Windows terminals also
    support drag-and-drop).
-5. Listen to the new `_auto-mixed.wav` files written beside the originals, and open
+5. Listen to the new `-automixed.wav` files written beside the originals, and open
    `podcast-automix-report.html` to review what the automixer changed.
 
 The original recordings are never modified. For a 30-second test before processing the
@@ -75,7 +75,7 @@ untouched, and the replacement files can be inspected before they enter the edit
 
 ## Features
 
-- Automixes two or more synchronized, single-speaker WAV microphone stems.
+- Attenuates one voiceover track or automixes multiple synchronized, single-speaker WAV stems.
 - Keeps active microphones at unity gain.
 - Smoothly attenuates microphones that are clearly inactive.
 - Preserves input duration, synchronization, sample rate, and channel layout.
@@ -126,7 +126,7 @@ cutting or otherwise editing the program:
 2. Synchronize everything and place each speaker's microphone on its own aligned track.
 3. Before making cuts, export or locate the synchronized full-length microphone WAV files.
 4. Run Podcast Automixer on those microphone stems.
-5. Review the reports and listen to the generated `_auto-mixed.wav` files.
+5. Review the reports and listen to the generated `-automixed.wav` files.
 6. Replace each original microphone stem with its matching auto-mixed replacement.
 7. Confirm that the replacement tracks remain perfectly synchronized, then link audio and
    video where appropriate.
@@ -225,7 +225,7 @@ Command Prompt terminals; terminal drag-and-drop is not advertised on macOS or L
 shells may insert escape characters. On those systems, paste or type the unescaped path at
 each prompt instead.
 
-For scripting, pass two or more positional arguments and use the quoting rules of the current
+For scripting, pass one or more positional arguments and use the quoting rules of the current
 shell.
 These examples all include paths containing spaces:
 
@@ -253,26 +253,63 @@ podcast-automix '/Users/me/Audio Files/A01.wav' '/Users/me/Audio Files/A02.wav' 
 podcast-automix '/home/me/Audio Files/A01.wav' '/home/me/Audio Files/A02.wav' '/home/me/Audio Files/A03.wav'
 ```
 
+### CLI modes
+
+- **Guided:** Run `podcast-automix` without file arguments to enter WAV paths interactively.
+  Add `--advanced` to choose Automix Engine settings at the prompts.
+- **Direct:** Pass WAV paths on the command line for normal progress output and interactive
+  overwrite confirmation.
+- **Unattended:** Add `--non-interactive` with at least two WAV paths. The command never prompts;
+  existing artifacts cause an error unless `--overwrite` is also supplied. Add `--quiet` to hide
+  progress and input summaries while still printing final artifact paths, and `--no-color` when
+  the surrounding terminal or log does not support styled output.
+- **JSON automation:** Add `--json` with at least two WAV paths for the stable, noninteractive
+  JSON result and exit-status contract described below.
+- **Configuration:** Use `--write-config PATH` to create reusable engine settings and
+  `--config PATH` to load them. Explicit setting flags override loaded values.
+
+Use `podcast-automix --version` to print the installed CLI version.
+
 Use `--` before positional arguments when a relative filename begins with `-`. Relative paths
 are resolved from the terminal's current working directory. Symbolic links are resolved before
-processing, so outputs are written beside the link target, not beside the symlink. Outputs use
-the `_auto-mixed.wav` suffix, and existing files are never silently replaced. Use
+processing, so default outputs are written beside the link target, not beside the symlink. Outputs use
+the `-automixed.wav` suffix, and existing files are never silently replaced. Use
 `--preview-start 60 --preview-duration 30` for a short preview and `--advanced` to expose tuning
-controls.
+controls. Pass `--output-dir DIRECTORY` to write every WAV, report, and optional diagnostic there
+instead; the directory must already exist.
 
-Each run writes:
+Without `--output-dir`, each run writes:
 
-- One `_auto-mixed.wav` replacement beside each input microphone.
+- One `-automixed.wav` replacement beside each input microphone.
 - `podcast-automix-report.html`, a self-contained visual report beside the first input.
 - `podcast-automix-report.json`, a machine-readable report beside the first input.
 - `podcast-automix-diagnostics.csv` beside the first input when `--diagnostics` is supplied.
+
+### Automation Contract
+
+Pass exact `--json` for noninteractive use. Standard output is one UTF-8 JSON object followed
+by one newline; handled outcomes leave standard error empty. Every result has
+`schema_version`, `cli_version`, `status`, `inputs`, `run`, `settings`, `artifacts`, `warnings`,
+and `error`. Schema version `1` consumers must ignore unknown fields added in later compatible
+revisions. JSON strings preserve Unicode and non-finite numbers are rejected rather than emitted.
+
+Exit statuses are `0` for success, `1` for an internal failure, `2` for an expected failure, and
+`130` for cancellation. Stable error codes are `invalid_arguments`, `invalid_configuration`,
+`invalid_inputs`, `output_collision`, `processing_failed`, `cancelled`, and `internal_failure`;
+message text is explanatory and is not an automation API.
+
+Use `--write-config PATH` to create a reusable configuration and `--config PATH` to load one;
+explicit setting flags override loaded values. See the dedicated
+[Automation Result v1](docs/automation-result-v1.md) and
+[Automix Configuration v1](docs/automix-configuration-v1.md) references for field definitions,
+compatibility rules, exclusions, and complete examples.
 
 Run `podcast-automix --help` for the complete command-line reference.
 
 ## Roadmap
 
 - [x] Conservative voice-activity-based automixing.
-- [x] Timing-identical replacement WAV files for two or more synchronized microphones.
+- [x] Timing-identical replacement WAV files for one or more microphone tracks.
 - [x] Preview rendering and advanced command-line settings.
 - [x] JSON, HTML, and optional CSV diagnostics.
 - [x] Visualize attenuation, gain changes, speaker ownership, overlap, and review moments.
@@ -318,3 +355,5 @@ JSON, and optional CSV artifacts.
 ## License
 
 Podcast Automixer is free and open-source software licensed under the [MIT License](LICENSE).
+
+The Diagnostic Timeline acknowledges techniques adapted from [OpenCut Classic](https://github.com/OpenCut-app/opencut-classic/tree/cf5e79e919144200294fb9fed22a222592a0aeea), used under its MIT license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the pinned source and notice.

@@ -29,7 +29,7 @@ jobs:
       - name: Build distributions
         run: uv build
       - name: Smoke-test wheel
-        run: uv run --isolated --no-project --with dist/*.whl podcast-automix --help
+        run: uv run --isolated --no-project --with dist/*.whl python scripts/smoke_wheel.py
       - name: Smoke-test source distribution
         run: uv run --isolated --no-project --with dist/*.tar.gz podcast-automix --help
       - name: Publish to PyPI

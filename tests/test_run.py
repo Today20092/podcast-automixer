@@ -24,7 +24,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
 
     class StubArtifacts:
         def __init__(self, preview: bool) -> None:
-            suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
+            suffix = "_auto-mixed-preview.wav" if preview else "-automixed.wav"
             self.paths = [info.path.with_name(f"{info.path.stem}{suffix}") for info in infos]
 
         def render(self, *_args, **_kwargs):
@@ -45,7 +45,7 @@ def _stub_pipeline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Audi
 
 @pytest.mark.parametrize(
     ("preview_start", "expected_suffix"),
-    [(None, "_auto-mixed.wav"), (2.0, "_auto-mixed-preview.wav")],
+    [(None, "-automixed.wav"), (2.0, "_auto-mixed-preview.wav")],
 )
 def test_run_completes_full_and_preview_runs(
     monkeypatch: pytest.MonkeyPatch,
@@ -68,7 +68,7 @@ def test_run_refuses_overwrite_before_analysis(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     infos = _infos(tmp_path)
-    collision = infos[0].path.with_name(f"{infos[0].path.stem}_auto-mixed.wav")
+    collision = infos[0].path.with_name(f"{infos[0].path.stem}-automixed.wav")
     collision.touch()
     monkeypatch.setattr(run, "inspect_inputs", lambda _paths: infos)
     monkeypatch.setattr(

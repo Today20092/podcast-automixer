@@ -29,11 +29,22 @@ class RenderedAudioArtifacts:
         *,
         preview: bool,
         overwrite: bool,
+        output_directory: Path | None = None,
         confirm_overwrite: OverwriteConfirmation | None = None,
+        additional_artifacts: tuple[str, ...] = (),
     ) -> RenderedAudioArtifacts:
-        suffix = "_auto-mixed-preview.wav" if preview else "_auto-mixed.wav"
-        paths = [info.path.with_name(f"{info.path.stem}{suffix}") for info in infos]
-        collisions = [path for path in paths if path.exists()]
+        # Preview artifacts deliberately retain their established disposable name.
+        # Editor deliverables use a distinct, source-derived name.
+        suffix = "_auto-mixed-preview.wav" if preview else "-automixed.wav"
+        paths = [
+            (output_directory or info.path.parent) / f"{info.path.stem}{suffix}" for info in infos
+        ]
+        directory = output_directory or infos[0].path.parent
+        collisions = [
+            path
+            for path in [*paths, *(directory / name for name in additional_artifacts)]
+            if path.exists()
+        ]
         if collisions and not overwrite:
             confirmed = bool(confirm_overwrite and confirm_overwrite(len(collisions)))
             if not confirmed:

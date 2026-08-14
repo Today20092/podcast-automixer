@@ -32,6 +32,8 @@ Environments**. No PyPI API-token secret is required.
    uv run ruff check .
    uv run ty check
    uv build
+   uv run --isolated --no-project --with dist/*.whl python scripts/smoke_wheel.py
+   uv run --isolated --no-project --with dist/*.tar.gz podcast-automix --help
    ```
 
 3. Commit and merge the version change to `main`.
@@ -52,8 +54,9 @@ uvx --from podcast-automixer podcast-automix --help
 ```
 
 2. Create a GitHub Release from the same tag. Give it a short, user-focused summary of the
-   changes, including any upgrade notes or behavior changes. GitHub then notifies people who
-   watch the repository's releases.
+   changes, including any upgrade notes or behavior changes. For v0.2.0, call out the CLI modes,
+   JSON automation contract, reusable configuration files, output-directory routing, and the
+   `-automixed.wav` output naming. GitHub then notifies people who watch the repository's releases.
 
 Do not announce a release before the PyPI workflow succeeds. The README points users to both
 PyPI for the package and GitHub Releases for release notes and notifications.
