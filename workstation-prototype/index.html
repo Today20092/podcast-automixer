@@ -45,7 +45,9 @@
     .gate-view { position:relative;overflow:hidden }
     .gate-view canvas { width:100%;height:100%;display:block }
     .gate-caption { position:absolute;left:14px;top:10px;font-size:11px;color:#aeb8c6 }
-    .attenuation { position:absolute;left:52%;top:9px;bottom:9px;width:21%;border-left:1px solid #4db8ff66;border-right:1px solid #4db8ff66;background:linear-gradient(90deg,#2a88d511,#2e98ff44,#2a88d511);pointer-events:none }
+    .overview-legend { position:absolute;right:14px;top:10px;display:none;gap:13px;font-size:10px;color:#9ca8b7 }
+    .overview-legend span { display:flex;align-items:center;gap:5px }
+    .overview-legend i { width:8px;height:8px;border-radius:2px;background:var(--legend-color) }
     .timeline-shell { min-height:0;display:grid;grid-template-rows:31px minmax(0,1fr) 20px;background:#0c0f14 }
     .timeline-toolbar { display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid var(--line);font-size:11px }
     .timeline-toolbar button { height:23px;padding:0 8px }
@@ -87,6 +89,12 @@
     .prototype-switcher button { width:28px;height:26px;background:#fff;color:#111;border-color:#bdc8d4 }
     .prototype-switcher strong { min-width:190px;text-align:center;font-size:11px }
 
+    /* Variant A: the multitrack timeline is the complete workstation view. */
+    body.variant-a .center { grid-template-rows:minmax(0,1fr) }
+    body.variant-a .overview { display:none }
+    body.variant-a .lane { height:68px }
+    body.variant-a .lane-head { padding-top:10px }
+
     /* Variant B: analysis instrument above a compact timeline. */
     body.variant-b .workspace { grid-template-columns:178px minmax(0,1fr) 250px }
     body.variant-b .center { grid-template-rows:minmax(330px,62%) minmax(0,1fr) }
@@ -96,6 +104,8 @@
     body.variant-b .lane-head { padding-top:8px }
     body.variant-b .lane-head small,.variant-b .meters { display:none }
     body.variant-b .gate-caption { font-size:12px;color:#c5cfdb }
+    body.variant-b .gate-caption:after { content:" · complete 01:12:36 track";color:#758192 }
+    body.variant-b .overview-legend { display:flex }
     body.variant-b .status-card { margin-bottom:0 }
     body.variant-b .inspector { grid-template-rows:38px auto auto minmax(0,1fr) }
 
@@ -140,8 +150,8 @@
         <section class="overview">
           <div class="gate-view">
             <canvas id="overviewCanvas"></canvas>
-            <span class="gate-caption">Adaptive bleed attenuation · selected microphone</span>
-            <span class="attenuation"></span>
+            <span class="gate-caption">MIC 03 · Guest B</span>
+            <div class="overview-legend"><span><i style="--legend-color:#2f976f"></i>Active speech</span><span><i style="--legend-color:#ae584f"></i>Attenuated</span><span><i style="--legend-color:#52606f"></i>Unchanged</span></div>
           </div>
         </section>
         <section class="timeline-shell">
@@ -188,7 +198,7 @@
       ['Host', '#44a8ff'], ['Guest A', '#f2a635'], ['Guest B', '#43d7c1'], ['Guest C', '#c184ff'],
       ['Guest D', '#ff6577'], ['Boom', '#84d65a'], ['Room L', '#70b7c9'], ['Room R', '#e188c8']
     ];
-    const variants = { A:'Timeline first', B:'Gate focus', C:'Editing bay' };
+    const variants = { A:'Timeline only', B:'Gate focus', C:'Editing bay' };
     const params = [
       ['Maximum attenuation','−18.0 dB',0,30,18], ['Attack','18 ms',0,200,18],
       ['Hold','120 ms',0,500,120], ['Release','420 ms',40,1500,420],
@@ -226,13 +236,20 @@
     function drawOverview() {
       const canvas = document.getElementById('overviewCanvas'), [ctx,w,h] = size(canvas);
       ctx.clearRect(0,0,w,h);
-      for(let g=1;g<5;g++){ctx.strokeStyle='#26303b';ctx.beginPath();ctx.moveTo(0,h*g/5);ctx.lineTo(w,h*g/5);ctx.stroke()}
-      ctx.beginPath();ctx.moveTo(0,h*.52);
-      for(let x=0;x<w;x+=2){const y=h*.52-seeded(2,x)*h*.48;ctx.lineTo(x,y)}
-      ctx.lineTo(w,h*.52);ctx.closePath();ctx.fillStyle='#7087b44a';ctx.fill();
+      const top=variant==='B'?36:0, bottom=variant==='B'?22:0, plotH=h-top-bottom;
+      for(let g=0;g<=6;g++){const x=w*g/6;ctx.strokeStyle='#202731';ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,h-bottom);ctx.stroke();if(variant==='B'){ctx.fillStyle='#768292';ctx.font='10px ui-monospace,Consolas';ctx.fillText(g===6?'01:12:36':String(g*12).padStart(2,'0')+':00',Math.min(x+5,w-48),h-7)}}
+      if(variant==='B'){
+        const regions=[['active',.02,.18],['duck',.18,.34],['active',.34,.47],['duck',.47,.61],['active',.61,.76],['duck',.76,.88],['active',.88,.98]];
+        regions.forEach(([kind,a,b])=>{ctx.fillStyle=kind==='active'?'#23755335':'#a8433b42';ctx.fillRect(w*a,top,w*(b-a),plotH);ctx.fillStyle=kind==='active'?'#55d6a2':'#ff8174';ctx.fillRect(w*a,top,2,plotH)});
+      }
+      for(let g=1;g<5;g++){ctx.strokeStyle='#26303b';ctx.beginPath();ctx.moveTo(0,top+plotH*g/5);ctx.lineTo(w,top+plotH*g/5);ctx.stroke()}
+      const mid=top+plotH*.52;
+      ctx.beginPath();ctx.moveTo(0,mid);
+      for(let x=0;x<w;x+=2){const y=mid-seeded(2,x)*plotH*.42;ctx.lineTo(x,y)}
+      ctx.lineTo(w,mid);ctx.closePath();ctx.fillStyle='#9ba9bb58';ctx.fill();
       ctx.strokeStyle='#8eb3e0aa';ctx.stroke();
       ctx.beginPath();
-      for(let x=0;x<w;x+=3){const gain=(x>w*.52&&x<w*.73)?.28:1;const y=h*.52-seeded(2,x)*h*.42*gain;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+      for(let x=0;x<w;x+=3){const p=x/w, gain=((p>.18&&p<.34)||(p>.47&&p<.61)||(p>.76&&p<.88))?.28:1;const y=mid-seeded(2,x)*plotH*.39*gain;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}
       ctx.strokeStyle='#5cc0ff';ctx.lineWidth=1.4;ctx.stroke();
     }
     function traceWave(ctx,w,h,i,mid,scale,gain,color,fill) {
