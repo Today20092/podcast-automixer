@@ -1,7 +1,7 @@
 [project]
 name = "podcast-automixer"
 version = "0.2.0"
-description = "Conservative offline automixing for synchronized podcast microphone stems"
+description = "Retired: use CleanSlate / Podcast Bleed Reducer (https://github.com/Today20092/podcast-bleed-reducer)"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
@@ -10,7 +10,7 @@ authors = [
 ]
 keywords = ["audio", "automixing", "podcast", "voice-activity-detection"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 7 - Inactive",
   "Environment :: Console",
   "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
@@ -34,6 +34,7 @@ dependencies = [
 ]
 
 [project.urls]
+Replacement = "https://github.com/Today20092/podcast-bleed-reducer"
 Homepage = "https://github.com/Today20092/podcast-automixer"
 Documentation = "https://github.com/Today20092/podcast-automixer#readme"
 Issues = "https://github.com/Today20092/podcast-automixer/issues"

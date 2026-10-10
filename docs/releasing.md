@@ -1,5 +1,10 @@
 # Releasing Podcast Automixer
 
+> **Retired:** Development moved to
+> [CleanSlate / Podcast Bleed Reducer](https://github.com/Today20092/podcast-bleed-reducer).
+> Do not publish further releases. The publishing workflow has been removed.
+> Instructions below are retained only as historical reference.
+
 Releases are built and published to the
 [Podcast Automixer PyPI project](https://pypi.org/project/podcast-automixer/) by
 `.github/workflows/release.yml`. The workflow uses PyPI trusted publishing, so the

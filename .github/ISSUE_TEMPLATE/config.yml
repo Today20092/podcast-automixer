@@ -1,2 +1,5 @@
 blank_issues_enabled: false
-contact_links: []
+contact_links:
+  - name: CleanSlate / Podcast Bleed Reducer
+    url: https://github.com/Today20092/podcast-bleed-reducer
+    about: Podcast Automixer is retired. Visit the replacement Rust project.
